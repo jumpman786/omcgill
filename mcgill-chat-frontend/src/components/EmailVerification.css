@@ -1,0 +1,56 @@
+.verification-container {
+    max-width: 500px;
+    margin: 2rem auto;
+    padding: 2rem;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    text-align: center;
+  }
+  
+  .verification-container h2 {
+    color: #7A003C;
+    margin-bottom: 1.5rem;
+  }
+  
+  .verification-container .form-group {
+    margin-bottom: 1.5rem;
+    text-align: left;
+  }
+  
+  .verification-container input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 16px;
+  }
+  
+  .verification-container .auth-button {
+    background-color: #7A003C;
+    color: white;
+    padding: 12px;
+    width: 100%;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+  }
+  
+  .verification-container .success-message {
+    background-color: rgba(76, 175, 80, 0.1);
+    border: 1px solid #4CAF50;
+    color: #4CAF50;
+    padding: 10px;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+  }
+  
+  .verification-container .error-message {
+    background-color: rgba(244, 67, 54, 0.1);
+    border: 1px solid #F44336;
+    color: #F44336;
+    padding: 10px;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+  }
