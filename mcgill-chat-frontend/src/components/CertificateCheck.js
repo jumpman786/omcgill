@@ -3,7 +3,9 @@ import axios from 'axios';
 
 const CertificateCheck = ({ onCertAccepted }) => {
   const [isChecking, setIsChecking] = useState(false);
-  const SERVER_IP = '10.0.0.227';
+  
+  // Use environment variable for server IP
+  const SERVER_IP = process.env.REACT_APP_SERVER_IP;
   
   const acceptCertificate = async () => {
     setIsChecking(true);

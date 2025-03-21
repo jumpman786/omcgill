@@ -4,7 +4,7 @@
  */
 
 // Add console log to confirm this file is loaded
-console.log("API.JS LOADED WITH SERVER IP: 10.0.0.227 - " + new Date().toISOString());
+console.log("API.JS LOADED - " + new Date().toISOString());
 
 // Debug mode for development
 export const DEBUG = true;
@@ -24,8 +24,8 @@ export const debugLog = (message, data = null) => {
  * Uses HTTPS by default with the secure port for proper WebRTC functionality
  */
 export const getApiUrl = () => {
-  // For mobile devices or cross-device testing, always use the server's IP address
-  const serverIP = '10.0.0.227'; // Your computer's IP
+  // Use environment variable if available
+  const serverIP = process.env.REACT_APP_SERVER_IP;
   
   // Check if we're on localhost
   if (window.location.hostname === 'localhost') {
@@ -43,8 +43,8 @@ export const getApiUrl = () => {
  * Uses the same HTTPS approach for consistency
  */
 export const getSocketUrl = () => {
-  // For mobile devices or cross-device testing, always use the server's IP address
-  const serverIP = '10.0.0.227'; // Your computer's IP
+  // Use environment variable if available
+  const serverIP = process.env.REACT_APP_SERVER_IP;
   
   // Check if we're on localhost
   if (window.location.hostname === 'localhost') {
@@ -96,6 +96,7 @@ export const handleFirebaseError = (error) => {
 
   return errorMap[error.code] || 'Authentication failed. Please try again.';
 };
+
 export const handleApiError = (error) => {
   // Check if it's a Firebase error
   if (error.code && error.code.startsWith('auth/')) {
@@ -110,7 +111,3 @@ export const handleApiError = (error) => {
   }
   return 'An unexpected error occurred. Please try again.';
 };
-
-
-
-
