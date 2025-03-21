@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: mcgill-chat-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb-data:/data/db
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./mcgill-chat-backend
+    container_name: mcgill-chat-backend
+    ports:
+      - "5001:5001"
+      - "5002:5002"
+    environment:
+      - PORT=5001
+      - HTTPS_PORT=5002
+      - MONGODB_URI=mongodb+srv://reswanthpillai:AVV0TdNSBMcJkt9X@cluster0.vnvyf.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0
+      - JWT_SECRET=${JWT_SECRET}
+      - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}
+      - FIREBASE_CLIENT_EMAIL=${FIREBASE_CLIENT_EMAIL}
+      - FIREBASE_PRIVATE_KEY=${FIREBASE_PRIVATE_KEY}
+      - SSL_CRT_FILE=${SSL_CRT_FILE}
+      - SSL_KEY_FILE=${SSL_KEY_FILE}
+      - HOST=${HOST}
+      - BROWSER=${BROWSER}
+    depends_on:
+      - mongodb
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./mcgill-chat-frontend
+    container_name: mcgill-chat-frontend
+    ports:
+      - "3000:80"
+    environment:
+      - REACT_APP_SERVER_IP=${SERVER_IP}
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  mongodb-data:
