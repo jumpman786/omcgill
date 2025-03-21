@@ -1,19 +1,8 @@
-
-
 services:
-  mongodb:
-    image: mongo:latest
-    container_name: mcgill-chat-mongodb
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongodb-data:/data/db
-    restart: unless-stopped
-
-  backend:
+  omcgill:
     build:
-      context: ./mcgill-chat-backend
-    container_name: mcgill-chat-backend
+      context: .
+    container_name: omcgill
     ports:
       - "5001:5001"
       - "5002:5002"
@@ -21,28 +10,15 @@ services:
       - PORT=5001
       - HTTPS_PORT=5002
       - MONGODB_URI=mongodb+srv://reswanthpillai:AVV0TdNSBMcJkt9X@cluster0.vnvyf.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0
-      - JWT_SECRET=${JWT_SECRET}
-      - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}
-      - FIREBASE_CLIENT_EMAIL=${FIREBASE_CLIENT_EMAIL}
-      - FIREBASE_PRIVATE_KEY=${FIREBASE_PRIVATE_KEY}
-      - SSL_CRT_FILE=${SSL_CRT_FILE}
-      - SSL_KEY_FILE=${SSL_KEY_FILE}
-      - HOST=${HOST}
-      - BROWSER=${BROWSER}
-    depends_on:
-      - mongodb
-    restart: unless-stopped
-
-  frontend:
-    build:
-      context: ./mcgill-chat-frontend
-    container_name: mcgill-chat-frontend
-    ports:
-      - "3000:80"
-    environment:
+      - JWT_SECRET=ILikeHotdogss123!
+      - FIREBASE_PROJECT_ID=omcgill-36047
+      - FIREBASE_CLIENT_EMAIL=firebase-adminsdk-fbsvc@omcgill-36047.iam.gserviceaccount.com
+      - FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC9dZEYNhtrvhu+\nyBwpX9pjSuJ1cNlt2aTY/7cShxI0E58xJk3C5kFqGpYDUTJ3fNvZmpkcw13bln45\nB5UfV+9t8kb/o6PCaAEu/9v8hV5ZbytWvkPAgqVAVPtkapfZ/GHQIWLInNT54q44\nnj1MT3sb+LRs9bzkMlIezlQbt3VEmKd9vxazNW0lv9azrxaYuM5iCGms5LO4uFTZ\nNua1bKsDkZwJKoC49qIBVckd+aHazIcBwuIIGU0HFizNMPx83Q9rqnRLN/78v06u\nGvj76YneTdpLqaGdX5Fmsckjfweefj1gTXHYPKO9gH4onEaSzSS5UDz4xN6gvt06\nIfLM2AhJAgMBAAECggEAQXNqlysmCPAppJx8Ah0flHrLxhegva7ZILAini90bfIz\nZibd6U1jXtTlayrzXM0RJFkguQuTEqeoXmpMrYHS8LAor+rnyWLlucdhR5kJcasS\nlUpwnIJltVZGbLfYUtG6Ns0506U+fD8/wcaE1aaFmLGwHw473be2n/bWnqafx/y9\nOarXFuTk4ozPHscLdGXczEiDi+RFTzws6WWCtBiDM2dbxeTWRjmy3jsifxcNyVI7\n8H+A9MYuBMWV24f4NF3EmRmJX4zm720RyPxJcZiTtaoxAN3FEj/DpKOc8NVF5J99\nKskQA1x9h+qTmBqxvwMljHPSWN0PocYYrxcsfUbnCwKBgQD6vLrkWqOfCoN/D4eb\noBSAzS6KjsqwsTdo6GInebNiyul3hi5xmqoC66MgAhh5i7tUjfXK1im9+qrMnT4b\nJKqKwheWTBZuVL6VxCx+IoT6EWR0F/FOVdRB/8IpAysbMT1dks2v0P4Y76nnoXyY\n0uj8ZY6ueCOqSGOjTbPQRArANwKBgQDBb5Nkt35R11nVzj+7SvFwOCVMRzAzK2X8\nfl6TGxmiAE6NzRoT46er3kl9cZfMRRgRouVpsGTFcTRo/RXcqksZtCZoupy5Ee2n\n8l8d978mvLQ5sNHIu4SeFvxcs8VawfZhGk/NA5p1nB0dya4d6KHXHL+Hft3oNc4B\nfjWjQXo7fwKBgQCSHU9P6V32PVs5vSQKVbP9BxS7G9EUPIGMufcRCAO4a4S36VLB\nUx8Fyqlp6q62je4hrQRyKnFyy1OjH3LkwG49pDO4myhrLSlO/13qN1WEoIQIfzdY\nrf2eZFuSKM2C8CPRls4USdb5UxiQ6fNA3490Hf6Sv2IRRlQCAzLpB+236wKBgCNE\noZ4SaqCnYATAhxQx9NVeF0bSD/K0bfLcY4f0v/aukaP/CksoDdEjRUju5htjWaEV\njzh25dit7D1cL5k9H1Y/Z2Ve6OZBY5Bke30uR5bbfwyptYYg0mw0iqyoRkpm5PIN\nZxFdH9NjtFdTB0ECwkdDQZSFyBXngXj6NvNeI9gnAoGAfzHZum5RryqxqrVtZ8gm\n9BGpWE79qLi0/bbA+7T+t7YJAqc2sO9wO1DPTaoDXRxND2/xIgdf23ueiyf4Jh2X\n/2OJo/ktZxlDFWgXgj/343ggsCLtDrkzPvrmUIdvDBqpwTSE1mmoYgc/9zcz+nhw\nMgzirhWTcKl/fOPq6V+ZLko=\n-----END PRIVATE KEY-----\n"
+      - SSL_CRT_FILE=./.cert/cert.pem
+      - SSL_KEY_FILE=./.cert/key.pem
+      - HOST=0.0.0.0
+      - BROWSER=none
       - REACT_APP_SERVER_IP=${REACT_APP_SERVER_IP}
-    depends_on:
-      - backend
     restart: unless-stopped
 
 volumes:
