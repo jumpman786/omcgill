@@ -366,7 +366,7 @@ app.use('/api', apiRouter);
 console.log('📱 Setting up to serve React frontend from backend server');
 
 // Define the build path
-const reactBuildPath = path.join(__dirname, '../mcgill-chat-frontend/build');
+const reactBuildPath = path.join(__dirname, 'public');
 
 // Check if the build directory exists
 if (fs.existsSync(reactBuildPath) && fs.existsSync(path.join(reactBuildPath, 'index.html'))) {
