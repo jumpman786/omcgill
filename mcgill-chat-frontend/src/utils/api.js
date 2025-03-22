@@ -49,8 +49,7 @@ export const getSocketUrl = () => {
   }
   
   // Check if we're running on Cloud Run (URL will have run.app in it)
-  if (window.location.hostname.includes('run.app') ||
-      window.location.hostname.includes('cloudfunctions.net')) {
+  if (window.location.hostname.includes('run.app')) {
     console.log("API.JS LOADED WITH SERVER: Using Cloud Run URL");
     // Use the same origin (no specific port needed for Cloud Run)
     return window.location.origin;
