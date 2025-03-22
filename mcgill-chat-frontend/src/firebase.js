@@ -14,6 +14,10 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+export const actionCodeSettings = {
+  url: window.location.origin + '/verify-email',
+  handleCodeInApp: false // Set to false for email verification links
+};
 
 // Set up emulator for local development if needed
 if (process.env.NODE_ENV === 'development' && process.env.REACT_APP_USE_FIREBASE_EMULATOR === 'true') {

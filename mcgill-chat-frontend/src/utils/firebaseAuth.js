@@ -32,8 +32,8 @@ import {
       // Create the user
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       
-      // Send email verification
-      await sendEmailVerification(userCredential.user);
+      // Send email verification with action code settings
+      await sendEmailVerification(userCredential.user, actionCodeSettings);
       
       return {
         success: true,
