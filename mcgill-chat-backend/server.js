@@ -93,13 +93,14 @@ try {
 // Configure Socket.io with more permissive CORS for local development
 const io = new Server(server, {
   cors: {
-    origin: '*', // Allow any origin during development
+    origin: '*', // More restrictive in production
     methods: ['GET', 'POST'],
-    allowedHeaders: ['Authorization'],
     credentials: true
   },
-  transports: ['polling', 'websocket'], // Important: Start with polling for better compatibility
-  perMessageDeflate: false
+  path: '/socket.io',
+  transports: ['websocket', 'polling'], 
+  pingInterval: 10000, // More frequent pings to keep connection alive
+  pingTimeout: 5000
 });
 
 // Configure Socket.io for HTTPS server if available

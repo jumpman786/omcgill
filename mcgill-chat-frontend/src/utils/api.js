@@ -40,32 +40,35 @@ export const getApiUrl = () => {
 
 /**
  * Get the URL for Socket.io connections
- * Uses the same HTTPS approach for consistency
  */
 export const getSocketUrl = () => {
-  // Use environment variable if available
-  const serverIP = process.env.REACT_APP_SERVER_IP;
-  
   // Check if we're on localhost
   if (window.location.hostname === 'localhost') {
-    console.log("API.JS: Using localhost for socket");
+    console.log("API.JS LOADED WITH SERVER: Using localhost for socket");
     return 'https://localhost:5002';
   }
   
-  // For all other devices (like phones accessing the site)
-  console.log("API.JS: Using IP address for socket:", serverIP);
+  // Check if we're running on Cloud Run (URL will have run.app in it)
+  if (window.location.hostname.includes('run.app') ||
+      window.location.hostname.includes('cloudfunctions.net')) {
+    console.log("API.JS LOADED WITH SERVER: Using Cloud Run URL");
+    // Use the same origin (no specific port needed for Cloud Run)
+    return window.location.origin;
+  }
+  
+  // For all other devices (like phones accessing local network)
+  const serverIP = process.env.REACT_APP_SERVER_IP;
+  console.log(`API.JS LOADED WITH SERVER: Using IP address for socket: ${serverIP}`);
   return `https://${serverIP}:5002`;
 };
 
 // Socket.io connection options for secure WebRTC
 export const SOCKET_OPTIONS = {
-  reconnectionAttempts: 15,
+  transports: ['websocket', 'polling'],
+  reconnectionAttempts: 5,
   reconnectionDelay: 1000,
   timeout: 20000,
-  transports: ['polling', 'websocket'], // Start with polling for better initial connection
-  secure: true,
-  rejectUnauthorized: false, // Important for self-signed certificates
-  autoConnect: true,
+  path: '/socket.io', // Ensure this matches backend
   forceNew: true
 };
 
