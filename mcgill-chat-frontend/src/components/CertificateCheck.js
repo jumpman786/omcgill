@@ -14,13 +14,13 @@ const CertificateCheck = ({ onCertAccepted }) => {
       // Open an iframe to trigger certificate acceptance
       const iframe = document.createElement('iframe');
       iframe.style.display = 'none';
-      iframe.src = `https://${SERVER_IP}:5002/videotest`;
+      iframe.src = `https://${SERVER_IP}:443/videotest`;
       document.body.appendChild(iframe);
       
       // Wait a moment for the certificate prompt to show
       setTimeout(() => {
         // Make a direct test request with certificate validation disabled
-        axios.get(`https://${SERVER_IP}:5002/api/health-check`, {
+        axios.get(`https://${SERVER_IP}:443/api/health-check`, {
           timeout: 5000,
           httpsAgent: { rejectUnauthorized: false }
         })

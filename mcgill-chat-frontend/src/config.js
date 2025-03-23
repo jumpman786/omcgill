@@ -17,7 +17,7 @@ export const getSocketUrl = () => {
   const protocol = window.location.protocol;
   
   // Use correct port based on protocol
-  const port = protocol === 'https:' ? '5002' : '5001';
+  const port = protocol === 'https:' ? '443' : '5001';
   
   // Return the full socket URL
   return `${protocol}//${hostname}:${port}`;
@@ -72,7 +72,7 @@ export const getApiUrl = () => {
   const hostname = window.location.hostname;
   
   // Use the same port as the current protocol
-  const port = protocol === 'https:' ? '5002' : '5001';
+  const port = protocol === 'https:' ? '443' : '5001';
   
   return `${protocol}//${hostname}:${port}/api`;
 };

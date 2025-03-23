@@ -49,7 +49,7 @@ RUN npm install --only=production
 RUN mkdir -p ./.cert
 
 # Expose ports for HTTP and HTTPS
-EXPOSE 5001 5002
+EXPOSE 5001 443
 
 # Start the backend server
 CMD ["node", "server.js"]

@@ -4,7 +4,7 @@ module.exports = {
     // Server configuration
     server: {
       port: process.env.PORT || 5001,
-      httpsPort: process.env.HTTPS_PORT || 5002,
+      httpsPort: process.env.HTTPS_PORT || 443,
       host: process.env.HOST || '0.0.0.0', // Bind to all network interfaces
     },
     

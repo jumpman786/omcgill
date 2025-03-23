@@ -24,7 +24,7 @@ app.get('/api/health-check', (req, res) => {
 
 // Define PORT and HTTPS_PORT
 const PORT = process.env.PORT || 5001;
-const HTTPS_PORT = process.env.HTTPS_PORT || 5002;
+const HTTPS_PORT = process.env.HTTPS_PORT || 443;
 
 // Enable debug mode for detailed logging
 const DEBUG = true;
