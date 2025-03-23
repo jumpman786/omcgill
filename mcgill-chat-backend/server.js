@@ -630,10 +630,10 @@ function getUserSocket(userId) {
 }
 
 // Configure socket handlers function (used for both HTTP and HTTPS servers)
-function configureSocketHandlers(socketServer, isHttps = false) {
+function configureSocketHandlers(socket, isHttps = false) {
   const serverType = isHttps ? 'HTTPS' : 'HTTP';
   
-  socketServer.on('connection', (socket) => {
+  scoket.on('connection', (socket) => {
     console.log(`✅ User connected to ${serverType} server: ${socket.id}`);
   
     // Handle user joining the chat
@@ -652,7 +652,7 @@ function configureSocketHandlers(socketServer, isHttps = false) {
       waitingUsers.video = waitingUsers.video.filter(id => id !== userId);
       
       // Broadcast active users
-      socketServer.emit('activeUsers', Object.keys(connectedUsers));
+      scoket.emit('activeUsers', Object.keys(connectedUsers));
     });
     
     // Explicit join room event
@@ -749,14 +749,14 @@ socket.on('findPartner', ({ userId, chatType, nickname, filters }) => {
         // If one of the sockets doesn't exist, put the valid user back in waiting
         if (userSocket) {
           waitingUsers[preferredChatType].push(userId);
-          socketServer.to(userId).emit('waiting', { 
+          socket.to(userId).emit('waiting', { 
             message: `Waiting for a ${preferredChatType} chat partner...` 
           });
         }
         
         if (partnerSocket) {
           waitingUsers[preferredChatType].push(partnerId);
-          socketServer.to(partnerId).emit('waiting', { 
+          scoket.to(partnerId).emit('waiting', { 
             message: `Waiting for a ${preferredChatType} chat partner...` 
           });
         }
@@ -794,7 +794,7 @@ socket.on('findPartner', ({ userId, chatType, nickname, filters }) => {
       });
       
       // First notify the partner who was waiting
-      socketServer.to(connectedUsers[partnerId]).emit('partnerFound', { 
+      scoket.to(connectedUsers[partnerId]).emit('partnerFound', { 
         partnerId: userId, 
         partnerNickname: userNicknames[userId] || 'Anonymous',
         roomId,
@@ -802,7 +802,7 @@ socket.on('findPartner', ({ userId, chatType, nickname, filters }) => {
       });
       
       // Then notify the new user who initiated the search
-      socketServer.to(connectedUsers[userId]).emit('partnerFound', { 
+      scoket.to(connectedUsers[userId]).emit('partnerFound', { 
         partnerId, 
         partnerNickname: userNicknames[partnerId] || 'Anonymous',
         roomId,
@@ -822,7 +822,7 @@ socket.on('findPartner', ({ userId, chatType, nickname, filters }) => {
     } else {
       // Add to waiting list
       waitingUsers[preferredChatType].push(userId);
-      socketServer.to(userId).emit('waiting', { 
+      socket.to(userId).emit('waiting', { 
         message: `Waiting for a ${preferredChatType} chat partner...` 
       });
       
@@ -837,7 +837,7 @@ socket.on('findPartner', ({ userId, chatType, nickname, filters }) => {
     console.error('Error finding compatible partner:', err);
     // Add to waiting list anyway if there's an error
     waitingUsers[preferredChatType].push(userId);
-    socketServer.to(userId).emit('waiting', { 
+    socket.to(userId).emit('waiting', { 
       message: `Waiting for a ${preferredChatType} chat partner...` 
     });
   });
