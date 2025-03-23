@@ -633,7 +633,7 @@ function getUserSocket(userId) {
 function configureSocketHandlers(socket, isHttps = false) {
   const serverType = isHttps ? 'HTTPS' : 'HTTP';
   
-  scoket.on('connection', (socket) => {
+  socket.on('connection', (socket) => {
     console.log(`✅ User connected to ${serverType} server: ${socket.id}`);
   
     // Handle user joining the chat
