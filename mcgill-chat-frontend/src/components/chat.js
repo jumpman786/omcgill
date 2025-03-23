@@ -924,7 +924,8 @@ const Chat = () => {
       return;
     }
     
-    debugLog(`Finding ${type} partner with filters:`, filters);
+    debugLog(`[CLIENT DEBUG] Finding ${type} partner with filters:`, filters);
+    debugLog(`[CLIENT DEBUG] User ID: ${user.id}, Nickname: ${user.nickname.trim()}`);
     
     // Reset any existing connection
     resetConnection();
@@ -934,17 +935,22 @@ const Chat = () => {
     setMedia(prev => ({ ...prev, error: null }));
     
     if (socketRef.current) {
+      debugLog(`[CLIENT DEBUG] Socket connected: ${socketRef.current.connected}, Socket ID: ${socketRef.current.id}`);
+      
       socketRef.current.emit('setChatPreference', { userId: user.id, preference: type });
+      debugLog(`[CLIENT DEBUG] Emitted setChatPreference for ${type}`);
+      
       socketRef.current.emit('findPartner', { 
         userId: user.id, 
         chatType: type,
         nickname: user.nickname.trim(),
-        filters: filters  // Add filters to the findPartner request
+        filters: filters
       });
       
-      debugLog(`Emitted findPartner request for ${type} chat with filters`, filters);
+      debugLog(`[CLIENT DEBUG] Emitted findPartner request for ${type} chat with filters`, filters);
+      debugLog(`[CLIENT DEBUG] Now waiting for partnerFound or waiting event...`);
     } else {
-      debugLog('Socket not connected, cannot find partner');
+      debugLog('[CLIENT DEBUG] Socket not connected, cannot find partner');
       setChat(prev => ({ ...prev, waiting: false }));
       setMedia(prev => ({ 
         ...prev, 
@@ -952,6 +958,137 @@ const Chat = () => {
       }));
     }
   };
+  
+  // Add heartbeat mechanism to detect and respond to disconnections
+  useEffect(() => {
+    if (!socketRef.current || !user.id) return;
+    
+    const heartbeatInterval = setInterval(() => {
+      if (socketRef.current && socketRef.current.connected) {
+        debugLog(`[CLIENT DEBUG] Sending heartbeat, socket ID: ${socketRef.current.id}`);
+        socketRef.current.emit('heartbeat', { 
+          userId: user.id,
+          waiting: chat.waiting,
+          chatType: chat.chatType
+        });
+      } else if (socketRef.current) {
+        debugLog(`[CLIENT DEBUG] Socket not connected during heartbeat check`);
+      }
+    }, 10000); // Every 10 seconds
+    
+    return () => clearInterval(heartbeatInterval);
+  }, [socketRef.current, user.id, chat.waiting, chat.chatType]);
+  
+  // Add enhanced socket reconnect handling
+  useEffect(() => {
+    if (!socketRef.current || !user.id) return;
+    
+    socketRef.current.io.on('reconnect', () => {
+      debugLog(`[CLIENT DEBUG] Socket reconnected with new ID: ${socketRef.current.id}`);
+      
+      // Re-register with the server on reconnection
+      socketRef.current.emit('join', user.id);
+      debugLog(`[CLIENT DEBUG] Re-registered user ${user.id} after reconnection`);
+      
+      // If we were waiting for a partner, re-enter the queue
+      if (chat.waiting) {
+        debugLog(`[CLIENT DEBUG] We were waiting for a ${chat.chatType} partner, rejoining queue`);
+        // Small delay to ensure server has processed the join event
+        setTimeout(() => {
+          findPartner(chat.chatType);
+        }, 1000);
+      }
+      
+      // If we were in a room, try to rejoin
+      if (chat.roomId) {
+        debugLog(`[CLIENT DEBUG] We were in room ${chat.roomId}, attempting to rejoin`);
+        socketRef.current.emit('joinRoom', { 
+          roomId: chat.roomId, 
+          userId: user.id 
+        });
+      }
+    });
+    
+    // Add handler for the 'waiting' event from server
+    socketRef.current.on('waiting', (data) => {
+      debugLog(`[CLIENT DEBUG] Received waiting event from server:`, data);
+      setChat(prev => ({ ...prev, waiting: true }));
+    });
+    
+    // Add more detailed logging for partnerFound event
+    socketRef.current.on('partnerFound', async (data) => {
+      debugLog(`[CLIENT DEBUG] Received partnerFound event:`, data);
+      // Rest of your existing code...
+    });
+    
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.io.off('reconnect');
+        socketRef.current.off('waiting');
+      }
+    };
+  }, [socketRef.current, user.id, chat.waiting, chat.chatType, chat.roomId]);
+  
+  // Add server-side heartbeat handling to server.js:
+  socket.on('heartbeat', ({ userId, waiting, chatType }) => {
+    debugLog(`[SERVER DEBUG] Received heartbeat from ${userId}, waiting: ${waiting}, chatType: ${chatType}`);
+    
+    // Check if the user exists in our connected users
+    if (connectedUsers[userId]) {
+      debugLog(`[SERVER DEBUG] User ${userId} is in connected users with socket ID ${connectedUsers[userId]}`);
+      
+      // Update the socket ID if it has changed
+      if (connectedUsers[userId] !== socket.id) {
+        debugLog(`[SERVER DEBUG] Updating socket ID for ${userId} from ${connectedUsers[userId]} to ${socket.id}`);
+        connectedUsers[userId] = socket.id;
+      }
+      
+      // Check if user is in waiting list but should be
+      if (waiting && chatType) {
+        const isInWaiting = waitingUsers[chatType].includes(userId);
+        debugLog(`[SERVER DEBUG] User ${userId} is waiting for ${chatType}, in waiting list: ${isInWaiting}`);
+        
+        // If user should be waiting but isn't in the list, add them
+        if (!isInWaiting) {
+          debugLog(`[SERVER DEBUG] Adding ${userId} back to ${chatType} waiting list`);
+          waitingUsers[chatType].push(userId);
+          
+          // Send waiting status back to client
+          socket.emit('waiting', {
+            message: `Waiting for a ${chatType} chat partner...`
+          });
+        }
+      }
+    } else {
+      // User not in connected users, re-add them
+      debugLog(`[SERVER DEBUG] User ${userId} not found in connected users, re-registering`);
+      connectedUsers[userId] = socket.id;
+      userServerType[userId] = isHttps ? 'HTTPS' : 'HTTP';
+      
+      // If they were waiting, re-add them to waiting list
+      if (waiting && chatType) {
+        debugLog(`[SERVER DEBUG] Adding ${userId} back to ${chatType} waiting list`);
+        
+        // First ensure they're not already in the list
+        waitingUsers.text = waitingUsers.text.filter(id => id !== userId);
+        waitingUsers.video = waitingUsers.video.filter(id => id !== userId);
+        
+        // Then add to correct list
+        waitingUsers[chatType].push(userId);
+        
+        // Send waiting status back to client
+        socket.emit('waiting', {
+          message: `Waiting for a ${chatType} chat partner...`
+        });
+      }
+      
+      // Broadcast updated active users
+      io.emit('activeUsers', Object.keys(connectedUsers));
+      if (httpsIo) {
+        httpsIo.emit('activeUsers', Object.keys(connectedUsers));
+      }
+    }
+  });
 
   // Skip current partner
   const skipPartner = () => {
