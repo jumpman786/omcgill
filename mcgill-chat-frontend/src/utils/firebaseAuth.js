@@ -3,9 +3,7 @@ import {
     createUserWithEmailAndPassword, 
     signInWithEmailAndPassword,
     sendEmailVerification,
-    sendPasswordResetEmail,
-    actionCodeSettings
-  } from "firebase/auth";
+    sendPasswordResetEmail  } from "firebase/auth";
   import { auth } from "../firebase";
   
   // Utility function to handle Firebase error messages
@@ -25,6 +23,11 @@ import {
     };
     
     return errorMessages[error.code] || error.message || 'An error occurred during authentication.';
+  };
+  
+  export const actionCodeSettings = {
+    url: window.location.origin + '/verify-email',
+    handleCodeInApp: false // Set to false for email verification links
   };
   
   // Firebase register function
