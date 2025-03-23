@@ -105,7 +105,7 @@ try {
   console.error('Failed to create HTTPS server:', err);
   console.log('Continuing with HTTP only (WebRTC may not work on iOS devices)');
 }
-
+``
 // Configure Socket.io with UPDATED CORS for Cloud Run
 const io = new Server(server, {
   cors: {
@@ -688,10 +688,10 @@ function configureSocketHandlers(socket, isHttps = false) {
         // Cross-broadcast confirmation to other server if this is in a dual-server setup
         if (!isHttps && httpsIo) {
           debugLog(`Cross-broadcasting connection confirmation to HTTPS server for room ${roomId}`);
-          httpsIo.to(roomId).emit('connectionConfirmed', { roomId });
+          httpssocket.to(roomId).emit('connectionConfirmed', { roomId });
         } else if (isHttps && io) {
           debugLog(`Cross-broadcasting connection confirmation to HTTP server for room ${roomId}`);
-          io.to(roomId).emit('connectionConfirmed', { roomId });
+          socket.to(roomId).emit('connectionConfirmed', { roomId });
         }
       }
     });
@@ -786,7 +786,7 @@ function configureSocketHandlers(socket, isHttps = false) {
             if (userSocket) {
               waitingUsers[preferredChatType].push(userId);
               debugLog(`[PARTNER DEBUG] Added user ${userId} back to waiting list`);
-              io.to(connectedUsers[userId]).emit('waiting', { 
+              socket.to(connectedUsers[userId]).emit('waiting', { 
                 message: `Waiting for a ${preferredChatType} chat partner...` 
               });
             }
@@ -794,7 +794,7 @@ function configureSocketHandlers(socket, isHttps = false) {
             if (partnerSocket) {
               waitingUsers[preferredChatType].push(partnerId);
               debugLog(`[PARTNER DEBUG] Added partner ${partnerId} back to waiting list`);
-              io.to(connectedUsers[partnerId]).emit('waiting', { 
+              socket.to(connectedUsers[partnerId]).emit('waiting', { 
                 message: `Waiting for a ${preferredChatType} chat partner...` 
               });
             }
@@ -821,7 +821,7 @@ function configureSocketHandlers(socket, isHttps = false) {
           debugLog(`[PARTNER DEBUG] Stored room information and user pairings`);
           
           // First notify the partner who was waiting
-          io.to(connectedUsers[partnerId]).emit('partnerFound', { 
+          socket.to(connectedUsers[partnerId]).emit('partnerFound', { 
             partnerId: userId, 
             partnerNickname: userNicknames[userId] || 'Anonymous',
             roomId,
@@ -830,7 +830,7 @@ function configureSocketHandlers(socket, isHttps = false) {
           debugLog(`[PARTNER DEBUG] Sent partnerFound to waiting partner ${partnerId}`);
           
           // Then notify the new user who initiated the search
-          io.to(connectedUsers[userId]).emit('partnerFound', { 
+          socket.to(connectedUsers[userId]).emit('partnerFound', { 
             partnerId, 
             partnerNickname: userNicknames[partnerId] || 'Anonymous',
             roomId,
@@ -841,9 +841,9 @@ function configureSocketHandlers(socket, isHttps = false) {
           // Send a confirmation that ensures both clients respond
           setTimeout(() => {
             // Send to both servers to ensure delivery
-            io.to(roomId).emit('connectionConfirmed', { roomId });
+            socket.to(roomId).emit('connectionConfirmed', { roomId });
             if (httpsIo) {
-              httpsIo.to(roomId).emit('connectionConfirmed', { roomId });
+              httpssocket.to(roomId).emit('connectionConfirmed', { roomId });
             }
             
             debugLog(`[PARTNER DEBUG] Sent connection confirmation for room ${roomId}`);
@@ -855,7 +855,7 @@ function configureSocketHandlers(socket, isHttps = false) {
           debugLog(`[PARTNER DEBUG] Current waiting counts - Text: ${waitingUsers.text.length}, Video: ${waitingUsers.video.length}`);
           debugLog(`[PARTNER DEBUG] Users in waiting: ${JSON.stringify(waitingUsers)}`);
           
-          io.to(connectedUsers[userId]).emit('waiting', { 
+          socket.to(connectedUsers[userId]).emit('waiting', { 
             message: `Waiting for a ${preferredChatType} chat partner...` 
           });
           debugLog(`[PARTNER DEBUG] Sent waiting message to ${userId}`);
@@ -864,7 +864,7 @@ function configureSocketHandlers(socket, isHttps = false) {
         console.error('[PARTNER DEBUG] Error finding compatible partner:', err);
         // Add to waiting list anyway if there's an error
         waitingUsers[preferredChatType].push(userId);
-        io.to(connectedUsers[userId]).emit('waiting', { 
+        socket.to(connectedUsers[userId]).emit('waiting', { 
           message: `Waiting for a ${preferredChatType} chat partner...` 
         });
         debugLog(`[PARTNER DEBUG] Error occurred, added ${userId} to waiting list`);
@@ -872,6 +872,66 @@ function configureSocketHandlers(socket, isHttps = false) {
     });
 
     // Add server-side heartbeat handling
+    // socket.on('heartbeat', ({ userId, waiting, chatType }) => {
+    //   debugLog(`[SERVER DEBUG] Received heartbeat from ${userId}, waiting: ${waiting}, chatType: ${chatType}`);
+      
+    //   // Check if the user exists in our connected users
+    //   if (connectedUsers[userId]) {
+    //     debugLog(`[SERVER DEBUG] User ${userId} is in connected users with socket ID ${connectedUsers[userId]}`);
+        
+    //     // Update the socket ID if it has changed
+    //     if (connectedUsers[userId] !== socket.id) {
+    //       debugLog(`[SERVER DEBUG] Updating socket ID for ${userId} from ${connectedUsers[userId]} to ${socket.id}`);
+    //       connectedUsers[userId] = socket.id;
+    //     }
+        
+    //     // Check if user is in waiting list but should be
+    //     if (waiting && chatType) {
+    //       const isInWaiting = waitingUsers[chatType].includes(userId);
+    //       debugLog(`[SERVER DEBUG] User ${userId} is waiting for ${chatType}, in waiting list: ${isInWaiting}`);
+          
+    //       // If user should be waiting but isn't in the list, add them
+    //       if (!isInWaiting) {
+    //         debugLog(`[SERVER DEBUG] Adding ${userId} back to ${chatType} waiting list`);
+    //         waitingUsers[chatType].push(userId);
+            
+    //         // Send waiting status back to client
+    //         socket.to(connectedUsers[userId]).emit('waiting', {
+    //           message: `Waiting for a ${chatType} chat partner...`
+    //         });
+    //       }
+    //     }
+    //   } else {
+    //     // User not in connected users, re-add them
+    //     debugLog(`[SERVER DEBUG] User ${userId} not found in connected users, re-registering`);
+    //     connectedUsers[userId] = socket.id;
+    //     userServerType[userId] = isHttps ? 'HTTPS' : 'HTTP';
+        
+    //     // If they were waiting, re-add them to waiting list
+    //     if (waiting && chatType) {
+    //       debugLog(`[SERVER DEBUG] Adding ${userId} back to ${chatType} waiting list`);
+          
+    //       // First ensure they're not already in the list
+    //       waitingUsers.text = waitingUsers.text.filter(id => id !== userId);
+    //       waitingUsers.video = waitingUsers.video.filter(id => id !== userId);
+          
+    //       // Then add to correct list
+    //       waitingUsers[chatType].push(userId);
+          
+    //       // Send waiting status back to client
+    //       socket.to(connectedUsers[userId]).emit('waiting', {
+    //         message: `Waiting for a ${chatType} chat partner...`
+    //       });
+    //     }
+        
+    //     // Broadcast updated active users
+    //     io.emit('activeUsers', Object.keys(connectedUsers));
+    //     if (httpsIo) {
+    //       httpsIo.emit('activeUsers', Object.keys(connectedUsers));
+    //     }
+    //   }
+    // });
+
     socket.on('heartbeat', ({ userId, waiting, chatType }) => {
       debugLog(`[SERVER DEBUG] Received heartbeat from ${userId}, waiting: ${waiting}, chatType: ${chatType}`);
       
@@ -895,9 +955,72 @@ function configureSocketHandlers(socket, isHttps = false) {
             debugLog(`[SERVER DEBUG] Adding ${userId} back to ${chatType} waiting list`);
             waitingUsers[chatType].push(userId);
             
-            // Send waiting status back to client
-            io.to(connectedUsers[userId]).emit('waiting', {
+            // Send waiting status back to client - FIXED: Use socket.emit not socket.to
+            socket.emit('waiting', {
               message: `Waiting for a ${chatType} chat partner...`
+            });
+            
+            // ADDED: Try to find a partner immediately after adding back to waiting list
+            findCompatiblePartner(userId, chatType).then(partnerInfo => {
+              if (partnerInfo) {
+                const { partnerId, partnerIndex } = partnerInfo;
+                
+                // Remove the partner from waiting list
+                waitingUsers[chatType].splice(partnerIndex, 1);
+                debugLog(`[PARTNER DEBUG] Removed partner ${partnerId} from waiting list`);
+                
+                // Create a unique room ID
+                const roomId = `${chatType}_room_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                debugLog(`[PARTNER DEBUG] Created room ${roomId} for ${userId} and ${partnerId}`);
+                
+                // Get both user sockets
+                const userSocket = getUserSocket(userId);
+                const partnerSocket = getUserSocket(partnerId);
+                
+                // Only proceed if both sockets exist
+                if (userSocket && partnerSocket) {
+                  // Add both users to the room
+                  userSocket.join(roomId);
+                  partnerSocket.join(roomId);
+                  
+                  // Store room information
+                  chatRooms[roomId] = { 
+                    participants: [userId, partnerId],
+                    chatType: chatType,
+                    createdAt: new Date()
+                  };
+                  
+                  userPairs[userId] = { partnerId, roomId };
+                  userPairs[partnerId] = { partnerId: userId, roomId };
+                  
+                  // Notify the partner who was waiting
+                  io.to(connectedUsers[partnerId]).emit('partnerFound', { 
+                    partnerId: userId, 
+                    partnerNickname: userNicknames[userId] || 'Anonymous',
+                    roomId,
+                    chatType: chatType
+                  });
+                  
+                  // Then notify the new user who initiated the search
+                  io.to(connectedUsers[userId]).emit('partnerFound', { 
+                    partnerId, 
+                    partnerNickname: userNicknames[partnerId] || 'Anonymous',
+                    roomId,
+                    chatType: chatType
+                  });
+                  
+                  // Send a confirmation that ensures both clients respond
+                  setTimeout(() => {
+                    // Send to both servers to ensure delivery
+                    io.to(roomId).emit('connectionConfirmed', { roomId });
+                    if (httpsIo) {
+                      httpsIo.to(roomId).emit('connectionConfirmed', { roomId });
+                    }
+                  }, 500);
+                }
+              }
+            }).catch(err => {
+              console.error('[PARTNER DEBUG] Error finding compatible partner during heartbeat:', err);
             });
           }
         }
@@ -918,9 +1041,69 @@ function configureSocketHandlers(socket, isHttps = false) {
           // Then add to correct list
           waitingUsers[chatType].push(userId);
           
-          // Send waiting status back to client
-          io.to(connectedUsers[userId]).emit('waiting', {
+          // Send waiting status back to client - FIXED: Use socket.emit not socket.to
+          socket.emit('waiting', {
             message: `Waiting for a ${chatType} chat partner...`
+          });
+          
+          // ADDED: Try to find a partner immediately
+          findCompatiblePartner(userId, chatType).then(partnerInfo => {
+            if (partnerInfo) {
+              // Same partner matching logic as above
+              const { partnerId, partnerIndex } = partnerInfo;
+              
+              // Remove the partner from waiting list
+              waitingUsers[chatType].splice(partnerIndex, 1);
+              
+              // Create a unique room ID
+              const roomId = `${chatType}_room_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+              
+              // Get both user sockets
+              const userSocket = getUserSocket(userId);
+              const partnerSocket = getUserSocket(partnerId);
+              
+              // Only proceed if both sockets exist
+              if (userSocket && partnerSocket) {
+                // Add both users to the room
+                userSocket.join(roomId);
+                partnerSocket.join(roomId);
+                
+                // Store room information
+                chatRooms[roomId] = { 
+                  participants: [userId, partnerId],
+                  chatType: chatType,
+                  createdAt: new Date()
+                };
+                
+                userPairs[userId] = { partnerId, roomId };
+                userPairs[partnerId] = { partnerId: userId, roomId };
+                
+                // Notify both users
+                io.to(connectedUsers[partnerId]).emit('partnerFound', { 
+                  partnerId: userId, 
+                  partnerNickname: userNicknames[userId] || 'Anonymous',
+                  roomId,
+                  chatType: chatType
+                });
+                
+                io.to(connectedUsers[userId]).emit('partnerFound', { 
+                  partnerId, 
+                  partnerNickname: userNicknames[partnerId] || 'Anonymous',
+                  roomId,
+                  chatType: chatType
+                });
+                
+                // Send confirmation
+                setTimeout(() => {
+                  io.to(roomId).emit('connectionConfirmed', { roomId });
+                  if (httpsIo) {
+                    httpsIo.to(roomId).emit('connectionConfirmed', { roomId });
+                  }
+                }, 500);
+              }
+            }
+          }).catch(err => {
+            console.error('[PARTNER DEBUG] Error finding compatible partner during heartbeat:', err);
           });
         }
         
@@ -931,108 +1114,125 @@ function configureSocketHandlers(socket, isHttps = false) {
         }
       }
     });
-
+    
     async function findCompatiblePartner(userId, chatType) {
-      debugLog(`[PARTNER DEBUG] Starting findCompatiblePartner for ${userId} with chat type ${chatType}`);
-      
-      // Get the user's filters
-      const filters = userFilters[userId] || {}; 
-      debugLog(`[PARTNER DEBUG] User filters:`, filters);
-      
-      // Get waiting users for this chat type
-      const waitingList = waitingUsers[chatType];
-      debugLog(`[PARTNER DEBUG] Current waiting list for ${chatType}: ${JSON.stringify(waitingList)}`);
-      debugLog(`[PARTNER DEBUG] Waiting list count: ${waitingList.length}`);
-      
-      // If the waiting list is empty, return null
-      if (waitingList.length === 0) {
-        debugLog(`[PARTNER DEBUG] No users waiting for ${chatType}, returning null`);
+      // Check if there are ANY waiting users first
+      if (waitingUsers[chatType].length === 0) {
+        debugLog(`[PARTNER DEBUG] No users waiting for ${chatType}`);
         return null;
       }
       
-      // If no filters, just return the first waiting user
-      if (!filters || (!filters.faculty && !filters.yearOfStudy)) {
-        debugLog(`[PARTNER DEBUG] No specific filters, finding first available user`);
-        const partnerIndex = waitingList.findIndex(id => id !== userId);
-        if (partnerIndex !== -1) {
-          debugLog(`[PARTNER DEBUG] Found partner at index ${partnerIndex}: ${waitingList[partnerIndex]}`);
-          return { partnerId: waitingList[partnerIndex], partnerIndex };
-        }
-        debugLog(`[PARTNER DEBUG] No suitable partner found in waiting list`);
-        return null;
+      // For immediate testing, just return the first waiting user
+      // that isn't the current user
+      const partnerIndex = waitingUsers[chatType].findIndex(id => id !== userId);
+      if (partnerIndex !== -1) {
+        return { partnerId: waitingUsers[chatType][partnerIndex], partnerIndex };
       }
       
-      // Get current user data for comparison
-      const currentUserEmail = userId; // Assuming userId is the email
-      debugLog(`[PARTNER DEBUG] Looking for match with specific filters for user ${currentUserEmail}`);
-      
-      // Look through waiting users to find a compatible partner
-      for (let i = 0; i < waitingList.length; i++) {
-        const waitingUserId = waitingList[i];
-        
-        // Skip if it's the same user
-        if (waitingUserId === userId) {
-          debugLog(`[PARTNER DEBUG] Skipping self match at index ${i}`);
-          continue;
-        }
-        
-        debugLog(`[PARTNER DEBUG] Checking compatibility with waiting user: ${waitingUserId}`);
-        
-        // Get the waiting user's email to look up their profile
-        const waitingUserEmail = waitingUserId; // Assuming email is used as userId
-        
-        // Check if filters match
-        try {
-          debugLog(`[PARTNER DEBUG] Looking up database profiles for ${currentUserEmail} and ${waitingUserEmail}`);
-          // Get both users from the database
-          const [currentUser, waitingUser] = await Promise.all([
-            User.findOne({ email: currentUserEmail }),
-            User.findOne({ email: waitingUserEmail })
-          ]);
-          
-          if (!currentUser || !waitingUser) {
-            debugLog(`[PARTNER DEBUG] One or both users not found in database. Current user exists: ${!!currentUser}, Waiting user exists: ${!!waitingUser}`);
-            continue; // Skip if either user is not found
-          }
-          
-          debugLog(`[PARTNER DEBUG] Found both users in database. Current user: ${currentUser.email}, Waiting user: ${waitingUser.email}`);
-          debugLog(`[PARTNER DEBUG] Current user faculty: ${currentUser.faculty}, year: ${currentUser.yearOfStudy}`);
-          debugLog(`[PARTNER DEBUG] Waiting user faculty: ${waitingUser.faculty}, year: ${waitingUser.yearOfStudy}`);
-          
-          // Check faculty filter if specified
-          if (filters.faculty && filters.faculty !== 'Any') {
-            if (waitingUser.faculty !== filters.faculty) {
-              debugLog(`[PARTNER DEBUG] Faculty mismatch - required: ${filters.faculty}, waiting user: ${waitingUser.faculty}`);
-              continue; // Faculty doesn't match, try next user
-            }
-            debugLog(`[PARTNER DEBUG] Faculty match - required: ${filters.faculty}, waiting user: ${waitingUser.faculty}`);
-          }
-          
-          // Check year of study filter if specified
-          if (filters.yearOfStudy && filters.yearOfStudy !== 'Any') {
-            if (waitingUser.yearOfStudy !== filters.yearOfStudy) {
-              debugLog(`[PARTNER DEBUG] Year mismatch - required: ${filters.yearOfStudy}, waiting user: ${waitingUser.yearOfStudy}`);
-              continue; // Year doesn't match, try next user
-            }
-            debugLog(`[PARTNER DEBUG] Year match - required: ${filters.yearOfStudy}, waiting user: ${waitingUser.yearOfStudy}`);
-          }
-          
-          // All filters passed, this user is compatible
-          debugLog(`[PARTNER DEBUG] Found compatible partner ${waitingUserEmail} for ${currentUserEmail}`);
-          return { partnerId: waitingUserId, partnerIndex: i };
-          
-        } catch (err) {
-          console.error("[PARTNER DEBUG] Error checking user compatibility:", err);
-          debugLog(`[PARTNER DEBUG] Database error while matching: ${err.message}`);
-          debugLog(`[PARTNER DEBUG] Failed match attempt details - current: ${currentUserEmail}, waiting: ${waitingUserEmail}, filters:`, filters);
-          continue; // Skip this user if there was an error
-        }
-      }
-      
-      // No compatible partner found
-      debugLog(`[PARTNER DEBUG] No compatible partner found for ${userId} after checking ${waitingList.length} waiting users`);
-      return null;
+      return null; // No compatible partner found
     }
+    
+    // async function findCompatiblePartner(userId, chatType) {
+    //   debugLog(`[PARTNER DEBUG] Starting findCompatiblePartner for ${userId} with chat type ${chatType}`);
+      
+    //   // Get the user's filters
+    //   const filters = userFilters[userId] || {}; 
+    //   debugLog(`[PARTNER DEBUG] User filters:`, filters);
+      
+    //   // Get waiting users for this chat type
+    //   const waitingList = waitingUsers[chatType];
+    //   debugLog(`[PARTNER DEBUG] Current waiting list for ${chatType}: ${JSON.stringify(waitingList)}`);
+    //   debugLog(`[PARTNER DEBUG] Waiting list count: ${waitingList.length}`);
+      
+    //   // If the waiting list is empty, return null
+    //   if (waitingList.length === 0) {
+    //     debugLog(`[PARTNER DEBUG] No users waiting for ${chatType}, returning null`);
+    //     return null;
+    //   }
+      
+    //   // If no filters, just return the first waiting user
+    //   if (!filters || (!filters.faculty && !filters.yearOfStudy)) {
+    //     debugLog(`[PARTNER DEBUG] No specific filters, finding first available user`);
+    //     const partnerIndex = waitingList.findIndex(id => id !== userId);
+    //     if (partnerIndex !== -1) {
+    //       debugLog(`[PARTNER DEBUG] Found partner at index ${partnerIndex}: ${waitingList[partnerIndex]}`);
+    //       return { partnerId: waitingList[partnerIndex], partnerIndex };
+    //     }
+    //     debugLog(`[PARTNER DEBUG] No suitable partner found in waiting list`);
+    //     return null;
+    //   }
+      
+    //   // Get current user data for comparison
+    //   const currentUserEmail = userId; // Assuming userId is the email
+    //   debugLog(`[PARTNER DEBUG] Looking for match with specific filters for user ${currentUserEmail}`);
+      
+    //   // Look through waiting users to find a compatible partner
+    //   for (let i = 0; i < waitingList.length; i++) {
+    //     const waitingUserId = waitingList[i];
+        
+    //     // Skip if it's the same user
+    //     if (waitingUserId === userId) {
+    //       debugLog(`[PARTNER DEBUG] Skipping self match at index ${i}`);
+    //       continue;
+    //     }
+        
+    //     debugLog(`[PARTNER DEBUG] Checking compatibility with waiting user: ${waitingUserId}`);
+        
+    //     // Get the waiting user's email to look up their profile
+    //     const waitingUserEmail = waitingUserId; // Assuming email is used as userId
+        
+    //     // Check if filters match
+    //     try {
+    //       debugLog(`[PARTNER DEBUG] Looking up database profiles for ${currentUserEmail} and ${waitingUserEmail}`);
+    //       // Get both users from the database
+    //       const [currentUser, waitingUser] = await Promise.all([
+    //         User.findOne({ email: currentUserEmail }),
+    //         User.findOne({ email: waitingUserEmail })
+    //       ]);
+          
+    //       if (!currentUser || !waitingUser) {
+    //         debugLog(`[PARTNER DEBUG] One or both users not found in database. Current user exists: ${!!currentUser}, Waiting user exists: ${!!waitingUser}`);
+    //         continue; // Skip if either user is not found
+    //       }
+          
+    //       debugLog(`[PARTNER DEBUG] Found both users in database. Current user: ${currentUser.email}, Waiting user: ${waitingUser.email}`);
+    //       debugLog(`[PARTNER DEBUG] Current user faculty: ${currentUser.faculty}, year: ${currentUser.yearOfStudy}`);
+    //       debugLog(`[PARTNER DEBUG] Waiting user faculty: ${waitingUser.faculty}, year: ${waitingUser.yearOfStudy}`);
+          
+    //       // Check faculty filter if specified
+    //       if (filters.faculty && filters.faculty !== 'Any') {
+    //         if (waitingUser.faculty !== filters.faculty) {
+    //           debugLog(`[PARTNER DEBUG] Faculty mismatch - required: ${filters.faculty}, waiting user: ${waitingUser.faculty}`);
+    //           continue; // Faculty doesn't match, try next user
+    //         }
+    //         debugLog(`[PARTNER DEBUG] Faculty match - required: ${filters.faculty}, waiting user: ${waitingUser.faculty}`);
+    //       }
+          
+    //       // Check year of study filter if specified
+    //       if (filters.yearOfStudy && filters.yearOfStudy !== 'Any') {
+    //         if (waitingUser.yearOfStudy !== filters.yearOfStudy) {
+    //           debugLog(`[PARTNER DEBUG] Year mismatch - required: ${filters.yearOfStudy}, waiting user: ${waitingUser.yearOfStudy}`);
+    //           continue; // Year doesn't match, try next user
+    //         }
+    //         debugLog(`[PARTNER DEBUG] Year match - required: ${filters.yearOfStudy}, waiting user: ${waitingUser.yearOfStudy}`);
+    //       }
+          
+    //       // All filters passed, this user is compatible
+    //       debugLog(`[PARTNER DEBUG] Found compatible partner ${waitingUserEmail} for ${currentUserEmail}`);
+    //       return { partnerId: waitingUserId, partnerIndex: i };
+          
+    //     } catch (err) {
+    //       console.error("[PARTNER DEBUG] Error checking user compatibility:", err);
+    //       debugLog(`[PARTNER DEBUG] Database error while matching: ${err.message}`);
+    //       debugLog(`[PARTNER DEBUG] Failed match attempt details - current: ${currentUserEmail}, waiting: ${waitingUserEmail}, filters:`, filters);
+    //       continue; // Skip this user if there was an error
+    //     }
+    //   }
+      
+    //   // No compatible partner found
+    //   debugLog(`[PARTNER DEBUG] No compatible partner found for ${userId} after checking ${waitingList.length} waiting users`);
+    //   return null;
+    // }
       
     // ------------------ SKIP ------------------
     
@@ -1044,9 +1244,9 @@ function configureSocketHandlers(socket, isHttps = false) {
         
         // Notify the partner - send to both servers to ensure delivery
         if (partnerId && connectedUsers[partnerId]) {
-          io.to(connectedUsers[partnerId]).emit('partnerDisconnected');
+          socket.to(connectedUsers[partnerId]).emit('partnerDisconnected');
           if (httpsIo) {
-            httpsIo.to(connectedUsers[partnerId]).emit('partnerDisconnected');
+            httpssocket.to(connectedUsers[partnerId]).emit('partnerDisconnected');
           }
         }
     
@@ -1081,9 +1281,9 @@ function configureSocketHandlers(socket, isHttps = false) {
         
         if (partnerId && connectedUsers[partnerId]) {
           // Send to both servers to ensure delivery
-          io.to(connectedUsers[partnerId]).emit('partnerDisconnected');
+          socket.to(connectedUsers[partnerId]).emit('partnerDisconnected');
           if (httpsIo) {
-            httpsIo.to(connectedUsers[partnerId]).emit('partnerDisconnected');
+            httpssocket.to(connectedUsers[partnerId]).emit('partnerDisconnected');
           }
         }
         
@@ -1122,9 +1322,9 @@ function configureSocketHandlers(socket, isHttps = false) {
         debugLog(`Connection check from ${userId} for room ${roomId} on ${serverType} server`, chatRooms[roomId]);
         
         // Emit confirmation to the room on both servers
-        io.to(roomId).emit('connectionConfirmed', { roomId });
+        socket.to(roomId).emit('connectionConfirmed', { roomId });
         if (httpsIo) {
-          httpsIo.to(roomId).emit('connectionConfirmed', { roomId });
+          httpssocket.to(roomId).emit('connectionConfirmed', { roomId });
         }
       }
     });
@@ -1166,14 +1366,14 @@ function configureSocketHandlers(socket, isHttps = false) {
         }).save();
   
         // Broadcast to room on both servers to ensure delivery
-        io.to(roomId).emit('receiveMessage', { 
+        socket.to(roomId).emit('receiveMessage', { 
           senderId, 
           message, 
           createdAt: new Date() 
         });
         
         if (httpsIo) {
-          httpsIo.to(roomId).emit('receiveMessage', { 
+          httpssocket.to(roomId).emit('receiveMessage', { 
             senderId, 
             message, 
             createdAt: new Date() 
@@ -1193,11 +1393,11 @@ function configureSocketHandlers(socket, isHttps = false) {
         
         // If this is HTTP server and HTTPS server exists, also broadcast there
         if (!isHttps && httpsIo) {
-          httpsIo.to(roomId).emit('typing', { senderId });
+          httpssocket.to(roomId).emit('typing', { senderId });
         }
         // If this is HTTPS server and HTTP server exists, also broadcast there
         else if (isHttps && io) {
-          io.to(roomId).emit('typing', { senderId });
+          socket.to(roomId).emit('typing', { senderId });
         }
       }
     });
@@ -1214,9 +1414,9 @@ function configureSocketHandlers(socket, isHttps = false) {
         
         // Cross-broadcast to other server
         if (!isHttps && httpsIo) {
-          httpsIo.to(data.roomId).emit('sdp', data);
+          httpssocket.to(data.roomId).emit('sdp', data);
         } else if (isHttps && io) {
-          io.to(data.roomId).emit('sdp', data);
+          socket.to(data.roomId).emit('sdp', data);
         }
         
         debugLog(`SDP relay successful for room ${data.roomId}`);
@@ -1235,9 +1435,9 @@ function configureSocketHandlers(socket, isHttps = false) {
         
         // Cross-broadcast to other server
         if (!isHttps && httpsIo) {
-          httpsIo.to(data.roomId).emit('ice_candidate', data);
+          httpssocket.to(data.roomId).emit('ice_candidate', data);
         } else if (isHttps && io) {
-          io.to(data.roomId).emit('ice_candidate', data);
+          socket.to(data.roomId).emit('ice_candidate', data);
         }
       }
     });
@@ -1250,9 +1450,9 @@ function configureSocketHandlers(socket, isHttps = false) {
         
         // Cross-broadcast to other server
         if (!isHttps && httpsIo) {
-          httpsIo.to(roomId).emit('partnerToggleVideo', { enabled, senderId });
+          httpssocket.to(roomId).emit('partnerToggleVideo', { enabled, senderId });
         } else if (isHttps && io) {
-          io.to(roomId).emit('partnerToggleVideo', { enabled, senderId });
+          socket.to(roomId).emit('partnerToggleVideo', { enabled, senderId });
         }
       }
     });
@@ -1264,9 +1464,9 @@ function configureSocketHandlers(socket, isHttps = false) {
         
         // Cross-broadcast to other server
         if (!isHttps && httpsIo) {
-          httpsIo.to(roomId).emit('partnerToggleAudio', { enabled, senderId });
+          httpssocket.to(roomId).emit('partnerToggleAudio', { enabled, senderId });
         } else if (isHttps && io) {
-          io.to(roomId).emit('partnerToggleAudio', { enabled, senderId });
+          socket.to(roomId).emit('partnerToggleAudio', { enabled, senderId });
         }
       }
     });
@@ -1293,9 +1493,9 @@ function configureSocketHandlers(socket, isHttps = false) {
           
           if (partnerId && connectedUsers[partnerId]) {
             // Send to both servers to ensure delivery
-            io.to(connectedUsers[partnerId]).emit('partnerDisconnected');
+            socket.to(connectedUsers[partnerId]).emit('partnerDisconnected');
             if (httpsIo) {
-              httpsIo.to(connectedUsers[partnerId]).emit('partnerDisconnected');
+              httpssocket.to(connectedUsers[partnerId]).emit('partnerDisconnected');
             }
           }
           
