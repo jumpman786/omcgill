@@ -833,7 +833,7 @@ socket.on('findPartner', ({ userId, chatType, nickname, filters }) => {
       debugLog(`[PARTNER DEBUG] Current waiting counts - Text: ${waitingUsers.text.length}, Video: ${waitingUsers.video.length}`);
       debugLog(`[PARTNER DEBUG] Users in waiting: ${JSON.stringify(waitingUsers)}`);
       
-      socket.to(userId).emit('waiting', { 
+      io.to(connectedUsers[userId]).emit('waiting', { 
         message: `Waiting for a ${preferredChatType} chat partner...` 
       });
       debugLog(`[PARTNER DEBUG] Sent waiting message to ${userId}`);
@@ -842,7 +842,7 @@ socket.on('findPartner', ({ userId, chatType, nickname, filters }) => {
     console.error('[PARTNER DEBUG] Error finding compatible partner:', err);
     // Add to waiting list anyway if there's an error
     waitingUsers[preferredChatType].push(userId);
-    socket.to(userId).emit('waiting', { 
+    io.to(connectedUsers[userId]).emit('waiting', { 
       message: `Waiting for a ${preferredChatType} chat partner...` 
     });
     debugLog(`[PARTNER DEBUG] Error occurred, added ${userId} to waiting list`);
