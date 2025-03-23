@@ -93,12 +93,14 @@ try {
 // Configure Socket.io with more permissive CORS for local development
 const io = new Server(server, {
   cors: {
-    origin: '*', // More restrictive in production
-    methods: ['GET', 'POST'],
+    origin: "*", // In production, you should be more specific
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true
   },
   path: '/socket.io',
-  transports: ['websocket', 'polling'], 
+  transports: ['polling', 'websocket'], // Allow both, but polling will be used on Cloud Run
+  allowEIO3: true, // Enable compatibility with older clients
   pingInterval: 10000, // More frequent pings to keep connection alive
   pingTimeout: 5000
 });
@@ -765,7 +767,7 @@ socket.on('findPartner', ({ userId, chatType, nickname, filters }) => {
         if (userSocket) {
           waitingUsers[preferredChatType].push(userId);
           debugLog(`[PARTNER DEBUG] Added user ${userId} back to waiting list`);
-          socket.to(userId).emit('waiting', { 
+          (userId).emit('waiting', { 
             message: `Waiting for a ${preferredChatType} chat partner...` 
           });
         }
@@ -773,7 +775,7 @@ socket.on('findPartner', ({ userId, chatType, nickname, filters }) => {
         if (partnerSocket) {
           waitingUsers[preferredChatType].push(partnerId);
           debugLog(`[PARTNER DEBUG] Added partner ${partnerId} back to waiting list`);
-          socket.to(partnerId).emit('waiting', { 
+          io.to(connectedUsers[userId]).emit('waiting', { 
             message: `Waiting for a ${preferredChatType} chat partner...` 
           });
         }
@@ -800,22 +802,19 @@ socket.on('findPartner', ({ userId, chatType, nickname, filters }) => {
       debugLog(`[PARTNER DEBUG] Stored room information and user pairings`);
       
       // First notify the partner who was waiting
-      socket.to(connectedUsers[partnerId]).emit('partnerFound', { 
+      io.to(connectedUsers[partnerId]).emit('partnerFound', { 
         partnerId: userId, 
         partnerNickname: userNicknames[userId] || 'Anonymous',
         roomId,
         chatType: preferredChatType
       });
-      debugLog(`[PARTNER DEBUG] Sent partnerFound to waiting partner ${partnerId}`);
       
-      // Then notify the new user who initiated the search
-      socket.to(connectedUsers[userId]).emit('partnerFound', { 
+      io.to(connectedUsers[userId]).emit('partnerFound', { 
         partnerId, 
         partnerNickname: userNicknames[partnerId] || 'Anonymous',
         roomId,
         chatType: preferredChatType
       });
-      debugLog(`[PARTNER DEBUG] Sent partnerFound to initiating user ${userId}`);
       
       // Send a confirmation that ensures both clients respond
       setTimeout(() => {

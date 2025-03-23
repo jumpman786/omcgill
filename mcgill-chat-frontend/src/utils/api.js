@@ -64,13 +64,15 @@ export const getApiUrl = () => {
 
 // Socket.io connection options optimized for Cloud Run
 export const SOCKET_OPTIONS = {
-  reconnectionAttempts: 5,
+  reconnectionAttempts: 10,         // Increase attempts
   reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000,       // Cap maximum delay
   timeout: 20000,
-  transports: window.location.hostname.includes('run.app') ? 
-    ['polling'] : ['polling', 'websocket'], // Use ONLY polling for Cloud Run
+  transports: ['polling'],          // Use ONLY polling for Cloud Run
   path: '/socket.io',
-  forceNew: true
+  forceNew: true,
+  withCredentials: false,           // Important for CORS with '*' origin
+  autoConnect: true
 };
 
 // WebRTC configuration with multiple STUN servers

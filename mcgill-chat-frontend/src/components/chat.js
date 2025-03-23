@@ -102,8 +102,13 @@ const Chat = () => {
         debugLog(`Socket connected successfully with ID: ${socketRef.current.id}`);
         setConnection(prev => ({ ...prev, socketStatus: 'connected' }));
         socketRef.current.emit('join', user.id);
+        if (chat.waiting) {
+          debugLog(`Re-registering for ${chat.chatType} chat after reconnection`);
+          setTimeout(() => {
+            findPartner(chat.chatType);
+          }, 1000);
+        }
       });
-      
       socketRef.current.on('connect_error', (error) => {
         console.error("Socket connection error:", error);
         debugLog(`Connection error details: ${error.message}`);
