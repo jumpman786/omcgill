@@ -652,7 +652,7 @@ function configureSocketHandlers(socket, isHttps = false) {
       waitingUsers.video = waitingUsers.video.filter(id => id !== userId);
       
       // Broadcast active users
-      scoket.emit('activeUsers', Object.keys(connectedUsers));
+      socket.emit('activeUsers', Object.keys(connectedUsers));
     });
     
     // Explicit join room event
@@ -756,7 +756,7 @@ socket.on('findPartner', ({ userId, chatType, nickname, filters }) => {
         
         if (partnerSocket) {
           waitingUsers[preferredChatType].push(partnerId);
-          scoket.to(partnerId).emit('waiting', { 
+          socket.to(partnerId).emit('waiting', { 
             message: `Waiting for a ${preferredChatType} chat partner...` 
           });
         }
@@ -794,7 +794,7 @@ socket.on('findPartner', ({ userId, chatType, nickname, filters }) => {
       });
       
       // First notify the partner who was waiting
-      scoket.to(connectedUsers[partnerId]).emit('partnerFound', { 
+      socket.to(connectedUsers[partnerId]).emit('partnerFound', { 
         partnerId: userId, 
         partnerNickname: userNicknames[userId] || 'Anonymous',
         roomId,
@@ -802,7 +802,7 @@ socket.on('findPartner', ({ userId, chatType, nickname, filters }) => {
       });
       
       // Then notify the new user who initiated the search
-      scoket.to(connectedUsers[userId]).emit('partnerFound', { 
+      socket.to(connectedUsers[userId]).emit('partnerFound', { 
         partnerId, 
         partnerNickname: userNicknames[partnerId] || 'Anonymous',
         roomId,

@@ -21,72 +21,56 @@ export const debugLog = (message, data = null) => {
 console.log("API.JS LOADED - " + new Date().toISOString());
 
 /**
- * Get the URL for Socket.io connections - IMPROVED VERSION
- * This version dynamically adapts to the current protocol and hostname
+ * Get the URL for Socket.io connections - CLOUD RUN COMPATIBLE
  */
 export const getSocketUrl = () => {
-  // Use environment variables if available (for production)
-  if (process.env.REACT_APP_SOCKET_URL) {
-    debugLog("Using environment variable for socket URL:", process.env.REACT_APP_SOCKET_URL);
-    return process.env.REACT_APP_SOCKET_URL;
-  }
-  
   // Check if we're running on Cloud Run (URL will have run.app in it)
   if (window.location.hostname.includes('run.app')) {
     debugLog("Using Cloud Run URL for socket");
-    // Use the same origin (no specific port needed for Cloud Run)
+    // IMPORTANT: Use only origin (no port) for Cloud Run
     return window.location.origin;
   }
   
-  // Dynamically use current hostname instead of hardcoded IP
-  const hostname = window.location.hostname;
-  // Use the same protocol as the current page
-  const protocol = window.location.protocol;
-  // Use correct port based on protocol
-  const port = protocol === 'https:' ? '443' : '5001';
+  // For local development
+  if (window.location.hostname === 'localhost') {
+    return 'http://localhost:8080';
+  }
   
-  const socketUrl = `${protocol}//${hostname}:${port}`;
-  debugLog("Using dynamic socket URL:", socketUrl);
-  return socketUrl;
+  // For other environments (direct IP access)
+  const protocol = window.location.protocol;
+  const hostname = window.location.hostname;
+  return `${protocol}//${hostname}`;
 };
 
 /**
  * Get the URL for backend API endpoints
- * Uses the same protocol as the current page
  */
 export const getApiUrl = () => {
-  // For development with React's proxy feature
-  if (process.env.NODE_ENV === 'development' && window.location.hostname === 'localhost') {
-    return '/api';
-  }
-  
   // Check if we're running on Cloud Run
   if (window.location.hostname.includes('run.app')) {
     return `${window.location.origin}/api`;
   }
   
-  // For direct connection to backend (including from mobile devices)
+  // For local development
+  if (window.location.hostname === 'localhost') {
+    return 'http://localhost:8080/api';
+  }
+  
+  // For other environments
   const protocol = window.location.protocol;
   const hostname = window.location.hostname;
-  // Use the same port as the current protocol
-  const port = protocol === 'https:' ? '443' : '5001';
-  
-  const apiUrl = `${protocol}//${hostname}:${port}/api`;
-  debugLog("Using API URL:", apiUrl);
-  return apiUrl;
+  return `${protocol}//${hostname}/api`;
 };
 
-// Socket.io connection options with improved reliability
+// Socket.io connection options optimized for Cloud Run
 export const SOCKET_OPTIONS = {
-  reconnectionAttempts: 15,
+  reconnectionAttempts: 5,
   reconnectionDelay: 1000,
   timeout: 20000,
-  transports: ['polling', 'websocket'], // Start with polling for better initial connection
-  secure: window.location.protocol === 'https:',
-  rejectUnauthorized: false, // Important for self-signed certificates
-  autoConnect: true,
-  forceNew: true,
-  path: '/socket.io' // Ensure this matches backend
+  transports: window.location.hostname.includes('run.app') ? 
+    ['polling'] : ['polling', 'websocket'], // Use ONLY polling for Cloud Run
+  path: '/socket.io',
+  forceNew: true
 };
 
 // WebRTC configuration with multiple STUN servers
@@ -118,7 +102,6 @@ export const handleFirebaseError = (error) => {
 
 // API error handler
 export const handleApiError = (error) => {
-  // Check if it's a Firebase error
   if (error.code && error.code.startsWith('auth/')) {
     return handleFirebaseError(error);
   }
