@@ -3,7 +3,8 @@ import {
     createUserWithEmailAndPassword, 
     signInWithEmailAndPassword,
     sendEmailVerification,
-    sendPasswordResetEmail
+    sendPasswordResetEmail,
+    actionCodeSettings
   } from "firebase/auth";
   import { auth } from "../firebase";
   
