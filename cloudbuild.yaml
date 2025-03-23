@@ -29,3 +29,6 @@ steps:
   - '--cors-allow-headers'
   - 'Content-Type,Authorization,X-Requested-With'
   - '--cors-allow-credentials'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
