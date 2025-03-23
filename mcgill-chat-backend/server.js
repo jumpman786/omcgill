@@ -651,10 +651,11 @@ function getUserSocket(userId) {
 }
 
 // Configure socket handlers function (used for both HTTP and HTTPS servers)
-function configureSocketHandlers(socket, isHttps = false) {
+function configureSocketHandlers(socketIO, isHttps = false) {
   const serverType = isHttps ? 'HTTPS' : 'HTTP';
   
-  socket.on('connection', (socket) => {
+  // IMPORTANT: We're attaching to the socketIO instance, not to a socket
+  socketIO.on('connection', (socket) => {
     console.log(`✅ User connected to ${serverType} server: ${socket.id}`);
   
     // Handle user joining the chat
@@ -688,7 +689,7 @@ function configureSocketHandlers(socket, isHttps = false) {
         // Cross-broadcast confirmation to other server if this is in a dual-server setup
         if (!isHttps && httpsIo) {
           debugLog(`Cross-broadcasting connection confirmation to HTTPS server for room ${roomId}`);
-          httpssocket.to(roomId).emit('connectionConfirmed', { roomId });
+          httpsIo.to(roomId).emit('connectionConfirmed', { roomId });
         } else if (isHttps && io) {
           debugLog(`Cross-broadcasting connection confirmation to HTTP server for room ${roomId}`);
           socket.to(roomId).emit('connectionConfirmed', { roomId });
@@ -843,7 +844,7 @@ function configureSocketHandlers(socket, isHttps = false) {
             // Send to both servers to ensure delivery
             socket.to(roomId).emit('connectionConfirmed', { roomId });
             if (httpsIo) {
-              httpssocket.to(roomId).emit('connectionConfirmed', { roomId });
+              httpsIo.to(roomId).emit('connectionConfirmed', { roomId });
             }
             
             debugLog(`[PARTNER DEBUG] Sent connection confirmation for room ${roomId}`);
@@ -1114,7 +1115,7 @@ function configureSocketHandlers(socket, isHttps = false) {
         }
       }
     });
-    
+
     async function findCompatiblePartner(userId, chatType) {
       // Check if there are ANY waiting users first
       if (waitingUsers[chatType].length === 0) {
@@ -1122,14 +1123,76 @@ function configureSocketHandlers(socket, isHttps = false) {
         return null;
       }
       
-      // For immediate testing, just return the first waiting user
-      // that isn't the current user
-      const partnerIndex = waitingUsers[chatType].findIndex(id => id !== userId);
-      if (partnerIndex !== -1) {
-        return { partnerId: waitingUsers[chatType][partnerIndex], partnerIndex };
+      // Shuffle the waiting list to avoid always matching the same users
+      // and to distribute matches more evenly
+      const shuffledWaitingList = [...waitingUsers[chatType]].sort(() => Math.random() - 0.5);
+      
+      // Try to find a partner that isn't the current user
+      for (const potentialPartnerId of shuffledWaitingList) {
+        // Skip if it's the same user
+        if (potentialPartnerId === userId) {
+          continue;
+        }
+        
+        // Check if the potential partner is still connected
+        if (!connectedUsers[potentialPartnerId]) {
+          // Remove disconnected users from waiting list
+          const disconnectedIndex = waitingUsers[chatType].indexOf(potentialPartnerId);
+          if (disconnectedIndex !== -1) {
+            waitingUsers[chatType].splice(disconnectedIndex, 1);
+            debugLog(`[PARTNER DEBUG] Removed disconnected user ${potentialPartnerId} from waiting list`);
+          }
+          continue;
+        }
+        
+        // Get filters for current user (if any)
+        const userFilter = userFilters[userId] || { faculty: 'Any', yearOfStudy: 'Any' };
+        
+        // If user has specific filters, try to match according to them
+        if (userFilter.faculty !== 'Any' || userFilter.yearOfStudy !== 'Any') {
+          try {
+            // Try to find user profiles from database
+            const [currentUser, partnerUser] = await Promise.all([
+              User.findOne({ email: userId }).lean().exec(),
+              User.findOne({ email: potentialPartnerId }).lean().exec()
+            ]);
+            
+            // If either user profile doesn't exist, skip filter matching
+            if (!currentUser || !partnerUser) {
+              debugLog(`[PARTNER DEBUG] Could not find user profiles for matching. Using default matching.`);
+            } else {
+              // Check faculty filter if specified
+              if (userFilter.faculty !== 'Any' && partnerUser.faculty !== userFilter.faculty) {
+                debugLog(`[PARTNER DEBUG] Faculty mismatch - ${userId} wants ${userFilter.faculty}, ${potentialPartnerId} is ${partnerUser.faculty || 'unknown'}`);
+                continue;
+              }
+              
+              // Check year of study filter if specified
+              if (userFilter.yearOfStudy !== 'Any' && partnerUser.yearOfStudy !== userFilter.yearOfStudy) {
+                debugLog(`[PARTNER DEBUG] Year mismatch - ${userId} wants ${userFilter.yearOfStudy}, ${potentialPartnerId} is ${partnerUser.yearOfStudy || 'unknown'}`);
+                continue;
+              }
+              
+              debugLog(`[PARTNER DEBUG] Found compatible filtered match: ${userId} and ${potentialPartnerId}`);
+            }
+          } catch (err) {
+            // If there's a database error, log it but don't block matching
+            console.error(`[PARTNER DEBUG] Database error while filtering matches:`, err);
+            debugLog(`[PARTNER DEBUG] Proceeding with unfiltered matching due to DB error`);
+          }
+        }
+        
+        // Found a compatible partner
+        const partnerIndex = waitingUsers[chatType].indexOf(potentialPartnerId);
+        if (partnerIndex !== -1) {
+          debugLog(`[PARTNER DEBUG] Match found: ${userId} with ${potentialPartnerId}`);
+          return { partnerId: potentialPartnerId, partnerIndex };
+        }
       }
       
-      return null; // No compatible partner found
+      // No compatible partner found after checking all waiting users
+      debugLog(`[PARTNER DEBUG] No compatible partner found for ${userId} after checking ${shuffledWaitingList.length} waiting users`);
+      return null;
     }
     
     // async function findCompatiblePartner(userId, chatType) {
@@ -1246,7 +1309,7 @@ function configureSocketHandlers(socket, isHttps = false) {
         if (partnerId && connectedUsers[partnerId]) {
           socket.to(connectedUsers[partnerId]).emit('partnerDisconnected');
           if (httpsIo) {
-            httpssocket.to(connectedUsers[partnerId]).emit('partnerDisconnected');
+            httpsIo.to(connectedUsers[partnerId]).emit('partnerDisconnected');
           }
         }
     
@@ -1283,7 +1346,7 @@ function configureSocketHandlers(socket, isHttps = false) {
           // Send to both servers to ensure delivery
           socket.to(connectedUsers[partnerId]).emit('partnerDisconnected');
           if (httpsIo) {
-            httpssocket.to(connectedUsers[partnerId]).emit('partnerDisconnected');
+            httpsIo.to(connectedUsers[partnerId]).emit('partnerDisconnected');
           }
         }
         
@@ -1324,7 +1387,7 @@ function configureSocketHandlers(socket, isHttps = false) {
         // Emit confirmation to the room on both servers
         socket.to(roomId).emit('connectionConfirmed', { roomId });
         if (httpsIo) {
-          httpssocket.to(roomId).emit('connectionConfirmed', { roomId });
+          httpsIo.to(roomId).emit('connectionConfirmed', { roomId });
         }
       }
     });
@@ -1373,7 +1436,7 @@ function configureSocketHandlers(socket, isHttps = false) {
         });
         
         if (httpsIo) {
-          httpssocket.to(roomId).emit('receiveMessage', { 
+          httpsIo.to(roomId).emit('receiveMessage', { 
             senderId, 
             message, 
             createdAt: new Date() 
@@ -1393,7 +1456,7 @@ function configureSocketHandlers(socket, isHttps = false) {
         
         // If this is HTTP server and HTTPS server exists, also broadcast there
         if (!isHttps && httpsIo) {
-          httpssocket.to(roomId).emit('typing', { senderId });
+          httpsIo.to(roomId).emit('typing', { senderId });
         }
         // If this is HTTPS server and HTTP server exists, also broadcast there
         else if (isHttps && io) {
@@ -1414,7 +1477,7 @@ function configureSocketHandlers(socket, isHttps = false) {
         
         // Cross-broadcast to other server
         if (!isHttps && httpsIo) {
-          httpssocket.to(data.roomId).emit('sdp', data);
+          httpsIo.to(data.roomId).emit('sdp', data);
         } else if (isHttps && io) {
           socket.to(data.roomId).emit('sdp', data);
         }
@@ -1435,7 +1498,7 @@ function configureSocketHandlers(socket, isHttps = false) {
         
         // Cross-broadcast to other server
         if (!isHttps && httpsIo) {
-          httpssocket.to(data.roomId).emit('ice_candidate', data);
+          httpsIo.to(data.roomId).emit('ice_candidate', data);
         } else if (isHttps && io) {
           socket.to(data.roomId).emit('ice_candidate', data);
         }
@@ -1450,7 +1513,7 @@ function configureSocketHandlers(socket, isHttps = false) {
         
         // Cross-broadcast to other server
         if (!isHttps && httpsIo) {
-          httpssocket.to(roomId).emit('partnerToggleVideo', { enabled, senderId });
+          httpsIo.to(roomId).emit('partnerToggleVideo', { enabled, senderId });
         } else if (isHttps && io) {
           socket.to(roomId).emit('partnerToggleVideo', { enabled, senderId });
         }
@@ -1464,7 +1527,7 @@ function configureSocketHandlers(socket, isHttps = false) {
         
         // Cross-broadcast to other server
         if (!isHttps && httpsIo) {
-          httpssocket.to(roomId).emit('partnerToggleAudio', { enabled, senderId });
+          httpsIo.to(roomId).emit('partnerToggleAudio', { enabled, senderId });
         } else if (isHttps && io) {
           socket.to(roomId).emit('partnerToggleAudio', { enabled, senderId });
         }
@@ -1495,7 +1558,7 @@ function configureSocketHandlers(socket, isHttps = false) {
             // Send to both servers to ensure delivery
             socket.to(connectedUsers[partnerId]).emit('partnerDisconnected');
             if (httpsIo) {
-              httpssocket.to(connectedUsers[partnerId]).emit('partnerDisconnected');
+              httpsIo.to(connectedUsers[partnerId]).emit('partnerDisconnected');
             }
           }
           
