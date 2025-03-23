@@ -3,11 +3,9 @@
  * This file provides consistent functions for connecting to the backend API and Socket.io
  */
 
-// Add console log to confirm this file is loaded
-console.log("API.JS LOADED - " + new Date().toISOString());
-
 // Debug mode for development
 export const DEBUG = true;
+
 // Debug logging helper
 export const debugLog = (message, data = null) => {
   if (DEBUG) {
@@ -19,59 +17,79 @@ export const debugLog = (message, data = null) => {
   }
 };
 
-/**
- * Get the URL for backend API endpoints
- * Uses HTTPS by default with the secure port for proper WebRTC functionality
- */
-export const getApiUrl = () => {
-  // Use environment variable if available
-  const serverIP = process.env.REACT_APP_SERVER_IP;
-  
-  // Check if we're on localhost
-  if (window.location.hostname === 'localhost') {
-    console.log("API.JS: Using localhost for API");
-    return 'https://localhost:5002/api';
-  }
-  
-  // For all other devices (like phones accessing the site)
-  console.log("API.JS: Using IP address for API:", serverIP);
-  return `https://${serverIP}:5002/api`;
-};
+// Log when this file loads
+console.log("API.JS LOADED - " + new Date().toISOString());
 
 /**
- * Get the URL for Socket.io connections
+ * Get the URL for Socket.io connections - IMPROVED VERSION
+ * This version dynamically adapts to the current protocol and hostname
  */
 export const getSocketUrl = () => {
-  // Check if we're on localhost
-  if (window.location.hostname === 'localhost') {
-    console.log("API.JS LOADED WITH SERVER: Using localhost for socket");
-    return 'https://localhost:5002';
+  // Use environment variables if available (for production)
+  if (process.env.REACT_APP_SOCKET_URL) {
+    debugLog("Using environment variable for socket URL:", process.env.REACT_APP_SOCKET_URL);
+    return process.env.REACT_APP_SOCKET_URL;
   }
   
   // Check if we're running on Cloud Run (URL will have run.app in it)
   if (window.location.hostname.includes('run.app')) {
-    console.log("API.JS LOADED WITH SERVER: Using Cloud Run URL");
+    debugLog("Using Cloud Run URL for socket");
     // Use the same origin (no specific port needed for Cloud Run)
     return window.location.origin;
   }
   
-  // For all other devices (like phones accessing local network)
-  const serverIP = process.env.REACT_APP_SERVER_IP;
-  console.log(`API.JS LOADED WITH SERVER: Using IP address for socket: ${serverIP}`);
-  return `https://${serverIP}:5002`;
+  // Dynamically use current hostname instead of hardcoded IP
+  const hostname = window.location.hostname;
+  // Use the same protocol as the current page
+  const protocol = window.location.protocol;
+  // Use correct port based on protocol
+  const port = protocol === 'https:' ? '5002' : '5001';
+  
+  const socketUrl = `${protocol}//${hostname}:${port}`;
+  debugLog("Using dynamic socket URL:", socketUrl);
+  return socketUrl;
 };
 
-// Socket.io connection options for secure WebRTC
+/**
+ * Get the URL for backend API endpoints
+ * Uses the same protocol as the current page
+ */
+export const getApiUrl = () => {
+  // For development with React's proxy feature
+  if (process.env.NODE_ENV === 'development' && window.location.hostname === 'localhost') {
+    return '/api';
+  }
+  
+  // Check if we're running on Cloud Run
+  if (window.location.hostname.includes('run.app')) {
+    return `${window.location.origin}/api`;
+  }
+  
+  // For direct connection to backend (including from mobile devices)
+  const protocol = window.location.protocol;
+  const hostname = window.location.hostname;
+  // Use the same port as the current protocol
+  const port = protocol === 'https:' ? '5002' : '5001';
+  
+  const apiUrl = `${protocol}//${hostname}:${port}/api`;
+  debugLog("Using API URL:", apiUrl);
+  return apiUrl;
+};
+
+// Socket.io connection options with improved reliability
 export const SOCKET_OPTIONS = {
-  transports: ['websocket', 'polling'],
-  reconnectionAttempts: 5,
+  reconnectionAttempts: 15,
   reconnectionDelay: 1000,
   timeout: 20000,
-  path: '/socket.io', // Ensure this matches backend
-  forceNew: true
+  transports: ['polling', 'websocket'], // Start with polling for better initial connection
+  secure: window.location.protocol === 'https:',
+  rejectUnauthorized: false, // Important for self-signed certificates
+  autoConnect: true,
+  forceNew: true,
+  path: '/socket.io' // Ensure this matches backend
 };
 
-// WebRTC configuration with multiple STUN servers for better connectivity
+// WebRTC configuration with multiple STUN servers
 export const WEBRTC_CONFIG = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
@@ -82,9 +100,9 @@ export const WEBRTC_CONFIG = {
   iceCandidatePoolSize: 10
 };
 
+// Firebase error handler
 export const handleFirebaseError = (error) => {
   debugLog('Firebase Error:', error);
-  
   const errorMap = {
     'auth/email-already-in-use': 'This McGill email is already registered',
     'auth/invalid-email': 'Invalid McGill email address',
@@ -95,16 +113,15 @@ export const handleFirebaseError = (error) => {
     'auth/too-many-requests': 'Too many attempts. Try again later.',
     'auth/operation-not-allowed': 'Email/password authentication is disabled'
   };
-
   return errorMap[error.code] || 'Authentication failed. Please try again.';
 };
 
+// API error handler
 export const handleApiError = (error) => {
   // Check if it's a Firebase error
   if (error.code && error.code.startsWith('auth/')) {
     return handleFirebaseError(error);
   }
-
   debugLog('API Error:', error);
   if (error.response) {
     return error.response.data?.error || 'Server error. Please try again.';
@@ -113,3 +130,11 @@ export const handleApiError = (error) => {
   }
   return 'An unexpected error occurred. Please try again.';
 };
+
+// Log configuration on load
+debugLog("API configuration loaded", {
+  apiUrl: getApiUrl(),
+  socketUrl: getSocketUrl(),
+  protocol: window.location.protocol,
+  hostname: window.location.hostname
+});
