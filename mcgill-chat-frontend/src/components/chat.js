@@ -1034,66 +1034,7 @@ const Chat = () => {
     };
   }, [socketRef.current, user.id, chat.waiting, chat.chatType, chat.roomId]);
   
-  // Add server-side heartbeat handling to server.js:
-  socket.on('heartbeat', ({ userId, waiting, chatType }) => {
-    debugLog(`[SERVER DEBUG] Received heartbeat from ${userId}, waiting: ${waiting}, chatType: ${chatType}`);
-    
-    // Check if the user exists in our connected users
-    if (connectedUsers[userId]) {
-      debugLog(`[SERVER DEBUG] User ${userId} is in connected users with socket ID ${connectedUsers[userId]}`);
-      
-      // Update the socket ID if it has changed
-      if (connectedUsers[userId] !== socket.id) {
-        debugLog(`[SERVER DEBUG] Updating socket ID for ${userId} from ${connectedUsers[userId]} to ${socket.id}`);
-        connectedUsers[userId] = socket.id;
-      }
-      
-      // Check if user is in waiting list but should be
-      if (waiting && chatType) {
-        const isInWaiting = waitingUsers[chatType].includes(userId);
-        debugLog(`[SERVER DEBUG] User ${userId} is waiting for ${chatType}, in waiting list: ${isInWaiting}`);
-        
-        // If user should be waiting but isn't in the list, add them
-        if (!isInWaiting) {
-          debugLog(`[SERVER DEBUG] Adding ${userId} back to ${chatType} waiting list`);
-          waitingUsers[chatType].push(userId);
-          
-          // Send waiting status back to client
-          socket.emit('waiting', {
-            message: `Waiting for a ${chatType} chat partner...`
-          });
-        }
-      }
-    } else {
-      // User not in connected users, re-add them
-      debugLog(`[SERVER DEBUG] User ${userId} not found in connected users, re-registering`);
-      connectedUsers[userId] = socket.id;
-      userServerType[userId] = isHttps ? 'HTTPS' : 'HTTP';
-      
-      // If they were waiting, re-add them to waiting list
-      if (waiting && chatType) {
-        debugLog(`[SERVER DEBUG] Adding ${userId} back to ${chatType} waiting list`);
-        
-        // First ensure they're not already in the list
-        waitingUsers.text = waitingUsers.text.filter(id => id !== userId);
-        waitingUsers.video = waitingUsers.video.filter(id => id !== userId);
-        
-        // Then add to correct list
-        waitingUsers[chatType].push(userId);
-        
-        // Send waiting status back to client
-        socket.emit('waiting', {
-          message: `Waiting for a ${chatType} chat partner...`
-        });
-      }
-      
-      // Broadcast updated active users
-      io.emit('activeUsers', Object.keys(connectedUsers));
-      if (httpsIo) {
-        httpsIo.emit('activeUsers', Object.keys(connectedUsers));
-      }
-    }
-  });
+  
 
   // Skip current partner
   const skipPartner = () => {

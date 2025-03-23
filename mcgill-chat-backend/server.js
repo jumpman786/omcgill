@@ -767,7 +767,7 @@ socket.on('findPartner', ({ userId, chatType, nickname, filters }) => {
         if (userSocket) {
           waitingUsers[preferredChatType].push(userId);
           debugLog(`[PARTNER DEBUG] Added user ${userId} back to waiting list`);
-          (userId).emit('waiting', { 
+          io.to(connectedUsers[userId]).emit('waiting', { 
             message: `Waiting for a ${preferredChatType} chat partner...` 
           });
         }
@@ -775,7 +775,7 @@ socket.on('findPartner', ({ userId, chatType, nickname, filters }) => {
         if (partnerSocket) {
           waitingUsers[preferredChatType].push(partnerId);
           debugLog(`[PARTNER DEBUG] Added partner ${partnerId} back to waiting list`);
-          io.to(connectedUsers[userId]).emit('waiting', { 
+          io.to(connectedUsers[partnerId]).emit('waiting', { 
             message: `Waiting for a ${preferredChatType} chat partner...` 
           });
         }
@@ -808,13 +808,16 @@ socket.on('findPartner', ({ userId, chatType, nickname, filters }) => {
         roomId,
         chatType: preferredChatType
       });
+      debugLog(`[PARTNER DEBUG] Sent partnerFound to waiting partner ${partnerId}`);
       
+      // Then notify the new user who initiated the search
       io.to(connectedUsers[userId]).emit('partnerFound', { 
         partnerId, 
         partnerNickname: userNicknames[partnerId] || 'Anonymous',
         roomId,
         chatType: preferredChatType
       });
+      debugLog(`[PARTNER DEBUG] Sent partnerFound to initiating user ${userId}`);
       
       // Send a confirmation that ensures both clients respond
       setTimeout(() => {
