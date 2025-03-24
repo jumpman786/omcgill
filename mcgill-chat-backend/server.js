@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const http = require('http');
 const https = require('https');
 const cors = require('cors');
 const fs = require('fs');
@@ -32,13 +33,20 @@ app.use((req, res, next) => {
   next();
 });
 
+// Also keep regular CORS middleware
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}));
+
+app.use(express.json());
+
 // Health check endpoint for certificate validation
 app.get('/api/health-check', (req, res) => {
   res.status(200).json({ status: 'ok', message: 'Certificate validated successfully' });
 });
-
-// Get server configuration
-const HTTPS_PORT = config.server.httpsPort;
 
 // Enable debug mode for detailed logging
 const DEBUG = config.debug;
@@ -54,55 +62,14 @@ function debugLog(message, data = null) {
   }
 }
 
-// Get server IP address for certificate
-const serverIP = getLocalIpAddress();
+// Create HTTP server (required for Cloud Run)
+const httpServer = http.createServer(app);
 
-// Generate self-signed certificate for HTTPS
-let httpsServer;
-try {
-  console.log('Generating self-signed SSL certificate...');
-  // Include both localhost and the server IP address in the certificate
-  const attrs = [{ name: 'commonName', value: 'localhost' }];
-  const altNames = [
-    { type: 2, value: 'localhost' },
-    { type: 2, value: serverIP },
-    { type: 7, ip: '127.0.0.1' },
-    { type: 7, ip: serverIP }
-  ];
-  
-  const pems = selfsigned.generate(attrs, { 
-    days: 365,
-    keySize: 2048,
-    algorithm: 'sha256',
-    extensions: [{ name: 'subjectAltName', altNames }]
-  });
-  
-  // Create HTTPS server
-  httpsServer = https.createServer({
-    key: pems.private,
-    cert: pems.cert
-  }, app);
-} catch (err) {
-  console.error('Failed to create HTTPS server:', err);
-  console.error('Application requires HTTPS for WebRTC functionality.');
-  process.exit(1);  // Exit if we can't create the HTTPS server
-}
+// Configure main Socket.io instance on HTTP server
+const io = configureSocketIo(httpServer, false);
 
-// Configure Socket.io with CORS
-const io = configureSocketIo(httpsServer, true);
-
-// Setup socket handlers
-setupSocketHandlers(io, true);
-
-// Also keep existing CORS middleware
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
-}));
-
-app.use(express.json());
+// Setup socket handlers on the main io instance
+setupSocketHandlers(io, false);
 
 // Connect to database
 setupDatabase();
@@ -113,10 +80,70 @@ app.use('/api', apiRoutes);
 // Serve static content
 setupStaticContent(app);
 
-// Start HTTPS server
-httpsServer.listen(HTTPS_PORT, config.server.host, () => {
-  displayServerInfo(HTTPS_PORT, 'https', true);
-});
+// DETECT ENVIRONMENT
+const isCloudRun = process.env.K_SERVICE || process.env.CLOUD_RUN;
+debugLog(`Running in ${isCloudRun ? 'Cloud Run' : 'development'} environment`);
+
+// ENVIRONMENT-SPECIFIC SERVER SETUP
+if (isCloudRun) {
+  // CLOUD RUN: Use only HTTP server on provided PORT
+  const port = process.env.PORT || 8080;
+  httpServer.listen(port, '0.0.0.0', () => {
+    console.log(`\n${'='.repeat(60)}`);
+    console.log(`🚀 Cloud Run HTTP server running on port ${port}`);
+    console.log(`Socket.io configured and ready.`);
+    console.log(`${'='.repeat(60)}`);
+  });
+} else {
+  // DEVELOPMENT: Set up HTTPS server with self-signed cert
+  try {
+    const HTTPS_PORT = config.server.httpsPort;
+    const serverIP = getLocalIpAddress();
+    
+    console.log('Generating self-signed SSL certificate for development...');
+    const attrs = [{ name: 'commonName', value: 'localhost' }];
+    const altNames = [
+      { type: 2, value: 'localhost' },
+      { type: 2, value: serverIP },
+      { type: 7, ip: '127.0.0.1' },
+      { type: 7, ip: serverIP }
+    ];
+    
+    const pems = selfsigned.generate(attrs, { 
+      days: 365,
+      keySize: 2048,
+      algorithm: 'sha256',
+      extensions: [{ name: 'subjectAltName', altNames }]
+    });
+    
+    // Create HTTPS server
+    const httpsServer = https.createServer({
+      key: pems.private,
+      cert: pems.cert
+    }, app);
+    
+    // Attach the same io instance to HTTPS server
+    io.attach(httpsServer);
+    
+    // Start HTTPS server for development
+    httpsServer.listen(HTTPS_PORT, config.server.host, () => {
+      displayServerInfo(HTTPS_PORT, 'https', true);
+    });
+    
+    // Also start HTTP server on port 8080 for development fallback
+    httpServer.listen(8080, '0.0.0.0', () => {
+      console.log(`HTTP development server running on port 8080 (fallback)`);
+    });
+  } catch (err) {
+    console.error('Failed to create HTTPS server:', err);
+    console.error('Falling back to HTTP only');
+    
+    // Start HTTP server as fallback
+    httpServer.listen(8080, '0.0.0.0', () => {
+      displayServerInfo(8080, 'http', false);
+    });
+  }
+}
 
 // Helper function to get local IP address
 function getLocalIpAddress() {
@@ -204,13 +231,11 @@ function displayServerInfo(port, protocol, isHttps = false) {
     console.log(`  - ${protocol}://${ip}:${port}`);
   });
   
-  if (!isHttps) {
-    console.log(`\n📝 API endpoints are available at:`);
-    localIPs.forEach(ip => {
-      console.log(`  - ${protocol}://${ip}:${port}/api/login`);
-      console.log(`  - ${protocol}://${ip}:${port}/api/register`);
-    });
-  }
+  console.log(`\n📝 API endpoints are available at:`);
+  localIPs.forEach(ip => {
+    console.log(`  - ${protocol}://${ip}:${port}/api/login`);
+    console.log(`  - ${protocol}://${ip}:${port}/api/register`);
+  });
   
   console.log(`\n⚠️ WebRTC test page available at:`);
   localIPs.forEach(ip => {
@@ -218,7 +243,7 @@ function displayServerInfo(port, protocol, isHttps = false) {
   });
   
   const reactBuildPath = path.join(__dirname, 'public');
-  if (fs.existsSync(reactBuildPath) && fs.existsSync(path.join(reactBuildPath, 'index.html')) && isHttps) {
+  if (fs.existsSync(reactBuildPath) && fs.existsSync(path.join(reactBuildPath, 'index.html'))) {
     console.log(`\n✅ React app is being served at:`);
     localIPs.forEach(ip => {
       console.log(`  - ${protocol}://${ip}:${port}`);
@@ -233,11 +258,5 @@ function displayServerInfo(port, protocol, isHttps = false) {
   console.log(`${'='.repeat(60)}`);
 }
 
-// Listen on the port specified by Cloud Run
-const port = process.env.PORT || 443;
-app.listen(port, '0.0.0.0', () => {
-  console.log(`HTTP server listening on port ${port} for Cloud Run compatibility`);
-});
-
 // Export for testing purposes
-module.exports = { app, httpsServer };
+module.exports = { app, httpServer };
