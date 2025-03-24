@@ -133,9 +133,6 @@ function getLocalIpAddress() {
   return 'localhost'; // Fallback to localhost if no external IP is found
 }
 
-// Export for testing purposes
-module.exports = { app, httpsServer };
-
 // Setup static content (React app)
 function setupStaticContent(app) {
   console.log('📱 Setting up to serve React frontend from backend server');
@@ -235,6 +232,12 @@ function displayServerInfo(port, protocol, isHttps = false) {
   
   console.log(`${'='.repeat(60)}`);
 }
+
+// Listen on the port specified by Cloud Run
+const port = process.env.PORT || 443;
+app.listen(port, '0.0.0.0', () => {
+  console.log(`HTTP server listening on port ${port} for Cloud Run compatibility`);
+});
 
 // Export for testing purposes
 module.exports = { app, httpsServer };
