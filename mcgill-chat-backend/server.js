@@ -4,7 +4,6 @@ const https = require('https');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
-const { Server } = require('socket.io');
 const selfsigned = require('selfsigned');
 const os = require('os');
 
@@ -238,4 +237,4 @@ function displayServerInfo(port, protocol, isHttps = false) {
 }
 
 // Export for testing purposes
-module.exports = { app, Server, httpsServer };
+module.exports = { app, httpsServer };
