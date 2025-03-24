@@ -64,14 +64,14 @@ export const getApiUrl = () => {
 
 // Socket.io connection options optimized for Cloud Run
 export const SOCKET_OPTIONS = {
-  reconnectionAttempts: 10,         // Increase attempts
+  reconnectionAttempts: 10,
   reconnectionDelay: 1000,
-  reconnectionDelayMax: 5000,       // Cap maximum delay
+  reconnectionDelayMax: 5000,
   timeout: 20000,
-  transports: ['polling'],          // Use ONLY polling for Cloud Run
+  transports: ['polling', 'websocket'], // Use both transports
   path: '/socket.io',
   forceNew: true,
-  withCredentials: false,           // Important for CORS with '*' origin
+  withCredentials: false,
   autoConnect: true
 };
 

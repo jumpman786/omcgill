@@ -23,10 +23,12 @@ module.exports = {
     pingInterval: 10000,
     upgradeTimeout: 15000,
     maxHttpBufferSize: 1e8,
+    allowEIO3: true,
     transports: ['websocket', 'polling'],
     cors: {
       origin: '*', // During development, allow all origins
-      methods: ['GET', 'POST'],
+      methods: ["GET", "POST", "OPTIONS", "PUT", "PATCH", "DELETE"],
+      allowedHeaders: ["Content-Type", "X-Requested-With", "Authorization"],
       credentials: true
     }
   },
