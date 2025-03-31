@@ -66,8 +66,13 @@ function getUserSocket(userId, io) {
 function setupSocketHandlers(socketIO, isHttps = false) {
   const serverType = isHttps ? 'HTTPS' : 'HTTP';
   
+  
   socketIO.on('connection', (socket) => {
     console.log(`✅ User connected to ${serverType} server: ${socket.id}`);
+    socket.on('requestActiveUsers', () => {
+      // Send active users count to the requesting client
+      socket.emit('activeUsers', Object.keys(connectedUsers));
+    });
     
     // Register all event handlers
     socketHandlers.registerHandlers(socket, socketIO, isHttps, serverType);

@@ -59,6 +59,7 @@ const Chat = () => {
   const connectionTimeout = useRef(null);
   const isInitiator = useRef(false);
   const currentRoomIdRef = useRef(null);
+  const offerSent = useRef(false);
 
   // Check authentication on page load
   useEffect(() => {
@@ -153,7 +154,33 @@ const Chat = () => {
     
     // Chat message handlers
     socketRef.current.on('receiveMessage', (data) => {
-      setChat(prev => ({ ...prev, messages: [...prev.messages, data] }));
+      debugLog(`Message received at ${new Date().toISOString()}:`, data);
+      
+      // Check if this message is for our current room and not already in our list
+      if (data.roomId !== currentRoomIdRef.current) {
+        debugLog(`Ignoring message for room ${data.roomId} as we're in ${currentRoomIdRef.current}`);
+        return;
+      }
+      
+      // Prevent duplicate messages by checking if we already have a message with the same timestamp
+      setChat(prev => {
+        // Check if this appears to be a duplicate message
+        const isDuplicate = prev.messages.some(msg => 
+          msg.senderId === data.senderId && 
+          msg.message === data.message && 
+          Math.abs(new Date(msg.createdAt) - new Date(data.createdAt)) < 1000
+        );
+        
+        if (isDuplicate) {
+          debugLog(`Ignoring duplicate message: ${data.message.substring(0, 20)}...`);
+          return prev;
+        }
+        
+        // Create a completely new messages array with the new message
+        const newMessages = [...prev.messages, data];
+        debugLog(`Updated messages array, new length: ${newMessages.length}`);
+        return { ...prev, messages: newMessages };
+      });
     });
     
     socketRef.current.on('typing', ({ senderId }) => {
@@ -218,11 +245,14 @@ const Chat = () => {
     socketRef.current.on('connectionConfirmed', ({ roomId: confirmedRoomId }) => {
       debugLog(`Connection confirmed for room: ${confirmedRoomId}`);
       
+      // Only act on confirmations for our current room
       if (confirmedRoomId === currentRoomIdRef.current) {
-        // If we're the initiator, try creating an offer with the ref room ID
-        // This provides a more reliable room ID than depending on state
-        if (isInitiator.current && peerConnection.current) {
+        // Only create an offer once if we're the initiator
+        if (isInitiator.current && peerConnection.current && !offerSent.current) {
           debugLog(`We are the initiator, creating offer with room ID: ${currentRoomIdRef.current}`);
+          // Mark that we've sent an offer
+          offerSent.current = true;
+          
           // Small delay to ensure peer connection is ready
           setTimeout(() => {
             createOffer(currentRoomIdRef.current);
@@ -859,6 +889,7 @@ const Chat = () => {
       chatType: chat.chatType, // Preserve the chat type
       receiverId: ''
     });
+    offerSent.current = false;
     
     // Reset room ID ref
     currentRoomIdRef.current = null;
@@ -1056,6 +1087,7 @@ const Chat = () => {
     
     return () => clearInterval(userCountInterval);
   }, [socketRef.current, user.id]);
+ 
   
   
 
