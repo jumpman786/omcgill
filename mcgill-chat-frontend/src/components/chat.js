@@ -60,6 +60,7 @@ const Chat = () => {
   const isInitiator = useRef(false);
   const currentRoomIdRef = useRef(null);
   const offerSent = useRef(false);
+  const messageQueue = useRef([]);
 
   // Check authentication on page load
   useEffect(() => {
@@ -157,7 +158,6 @@ const Chat = () => {
       debugLog(`Message received at ${new Date().toISOString()}:`, data);
       
       // If roomId is not included in the message, use the current room
-      // This is necessary because the server appears to send messages without a roomId
       const messageRoomId = data.roomId || currentRoomIdRef.current;
       
       // Check if this message is for our current room
@@ -1040,6 +1040,21 @@ const Chat = () => {
       socketRef.current.emit('join', user.id);
       debugLog(`[CLIENT DEBUG] Re-registered user ${user.id} after reconnection`);
       
+      // Process any queued messages
+      if (messageQueue.current.length > 0) {
+        debugLog(`Processing ${messageQueue.current.length} queued messages`);
+        
+        messageQueue.current.forEach(msg => {
+          if (socketRef.current && socketRef.current.connected) {
+            socketRef.current.emit('sendMessage', msg);
+            debugLog(`Sent queued message: ${msg.message.substring(0, 20)}...`);
+          }
+        });
+        
+        // Clear the queue
+        messageQueue.current = [];
+      }
+      
       // If we were waiting for a partner, re-enter the queue
       if (chat.waiting) {
         debugLog(`[CLIENT DEBUG] We were waiting for a ${chat.chatType} partner, rejoining queue`);
@@ -1117,18 +1132,32 @@ const Chat = () => {
 
   // Send a message
   const sendMessage = () => {
-    if (!socketRef.current || !chat.message.trim() || !chat.roomId) return;
+    if (!chat.message.trim() || !chat.roomId) return;
     
-    debugLog(`Sending message to room ${chat.roomId}`);
-    
-    socketRef.current.emit('sendMessage', { 
+    const messageData = { 
       senderId: user.id, 
       receiverId: chat.receiverId, 
       message: chat.message.trim(), 
-      roomId: chat.roomId 
-    });
+      roomId: chat.roomId,
+      localId: Date.now() // Add a local ID to track this message
+    };
     
-    setChat(prev => ({ ...prev, message: '' }));
+    // Add to local messages immediately to improve UI responsiveness
+    setChat(prev => ({
+      ...prev, 
+      message: '',
+      messages: [...prev.messages, {...messageData, createdAt: new Date(), pending: true}]
+    }));
+    
+    // Try to send - if socket is disconnected, queue the message
+    if (socketRef.current && socketRef.current.connected) {
+      debugLog(`Sending message to room ${chat.roomId}`);
+      socketRef.current.emit('sendMessage', messageData);
+    } else {
+      // Socket disconnected, queue the message
+      messageQueue.current.push(messageData);
+      debugLog(`Socket disconnected, message queued. Queue size: ${messageQueue.current.length}`);
+    }
   };
 
   // Handle typing indicator
