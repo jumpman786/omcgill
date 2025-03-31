@@ -584,29 +584,69 @@ function registerHandlers(socket, io, isHttps, serverType) {
   // ------------------ TEXT MESSAGE HANDLING ------------------
 
   // On the server side, modify the sendMessage handler:
-socket.on('sendMessage', ({ senderId, receiverId, message, roomId }) => {
+// Enhance the existing sendMessage handler to better handle room validation
+socket.on('sendMessage', ({ senderId, receiverId, message, roomId, messageId }) => {
   console.log(`💬 Message from ${senderId} to ${receiverId} in room ${roomId}: ${message}`);
   
-  if (roomId && chatRooms[roomId]) {
-    // Save message to database
-    new Message({ 
-      senderId, 
-      receiverId, 
-      message, 
-      status: 'delivered',
-      createdAt: new Date()
-    }).save();
-
-    // Broadcast to room - include roomId here
-    io.to(roomId).emit('receiveMessage', { 
-      senderId, 
-      message, 
-      roomId,  // Add this line to include roomId in the emitted message
-      createdAt: new Date() 
-    });
-  } else {
-    console.log(`⚠️ Message not sent: Invalid room ${roomId}`);
+  // Add extra validation for room existence
+  if (!roomId) {
+    debugLog(`Message not sent: Missing room ID`);
+    return;
   }
+  
+  if (!chatRooms[roomId]) {
+    debugLog(`Message not sent: Room ${roomId} not found`);
+    
+    // If the room doesn't exist but we have the necessary info, try to recreate it
+    if (senderId && receiverId) {
+      debugLog(`Attempting to recreate room ${roomId} for users ${senderId} and ${receiverId}`);
+      
+      // Create the room
+      chatRooms[roomId] = {
+        participants: [senderId, receiverId],
+        chatType: 'text', // Default to text chat
+        createdAt: new Date()
+      };
+      
+      // Update user pairs
+      userPairs[senderId] = { partnerId: receiverId, roomId };
+      userPairs[receiverId] = { partnerId: senderId, roomId };
+      
+      // Join both users to the room if they're connected
+      if (connectedUsers[senderId]) {
+        const senderSocket = io.sockets.sockets.get(connectedUsers[senderId]);
+        if (senderSocket) senderSocket.join(roomId);
+      }
+      
+      if (connectedUsers[receiverId]) {
+        const receiverSocket = io.sockets.sockets.get(connectedUsers[receiverId]);
+        if (receiverSocket) receiverSocket.join(roomId);
+      }
+      
+      debugLog(`Room ${roomId} recreated for users ${senderId} and ${receiverId}`);
+    } else {
+      return;
+    }
+  }
+  
+  // Save message to database
+  new Message({ 
+    senderId, 
+    receiverId, 
+    message, 
+    messageId, // Store the messageId
+    status: 'delivered',
+    createdAt: new Date()
+  }).save();
+
+  // Broadcast to room - include roomId and messageId in the response
+  io.to(roomId).emit('receiveMessage', { 
+    senderId, 
+    message, 
+    roomId,
+    messageId, // Include messageId for client-side deduplication
+    createdAt: new Date() 
+  });
 });
 
   // ------------------ TYPING HANDLING ------------------

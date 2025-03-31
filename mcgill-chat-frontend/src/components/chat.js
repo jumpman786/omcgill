@@ -1108,10 +1108,15 @@ const Chat = () => {
     return () => {
       if (socketRef.current) {
         socketRef.current.io.off('reconnect');
-        socketRef.current.off('waiting');
       }
     };
-  }, [socketRef.current, user.id, chat.waiting, chat.chatType, chat.roomId]);
+  }, [socketRef.current, user.id, chat.roomId, chat.receiverId]);
+  useEffect(() => {
+    if (chat.roomId) {
+      lastKnownRoomId.current = chat.roomId;
+      debugLog(`Updated lastKnownRoomId to ${chat.roomId}`);
+    }
+  }, [chat.roomId]);
   useEffect(() => {
     if (!socketRef.current || !user.id) return;
     
@@ -1178,6 +1183,7 @@ useEffect(() => {
 
   // Send a message
   // Send a message
+// Modified sendMessage function with localOnly flag
 const sendMessage = () => {
   if (!chat.message.trim() || !chat.roomId) return;
   
