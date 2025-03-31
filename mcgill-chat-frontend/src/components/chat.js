@@ -61,6 +61,8 @@ const Chat = () => {
   const currentRoomIdRef = useRef(null);
   const offerSent = useRef(false);
   const messageQueue = useRef([]);
+  const reconnectionAttempts = useRef(0);
+  const lastKnownRoomId = useRef(null);
 
   // Check authentication on page load
   useEffect(() => {
@@ -105,6 +107,9 @@ const Chat = () => {
         setConnection(prev => ({ ...prev, socketStatus: 'connected' }));
         socketRef.current.emit('join', user.id);
         socketRef.current.emit('requestActiveUsers');
+        if (chat.roomId) {
+          lastKnownRoomId.current = chat.roomId;
+        }
         if (chat.waiting) {
           debugLog(`Re-registering for ${chat.chatType} chat after reconnection`);
           setTimeout(() => {
@@ -894,6 +899,8 @@ const Chat = () => {
       receiverId: ''
     });
     offerSent.current = false;
+    lastKnownRoomId.current = null;
+    messageQueue.current = [];
     
     // Reset room ID ref
     currentRoomIdRef.current = null;
@@ -1033,10 +1040,14 @@ const Chat = () => {
   useEffect(() => {
     if (!socketRef.current || !user.id) return;
     
-    socketRef.current.io.on('reconnect', () => {
-      debugLog(`[CLIENT DEBUG] Socket reconnected with new ID: ${socketRef.current.id}`);
+    socketRef.current.io.on('reconnect', (attemptNumber) => {
+      debugLog(`[CLIENT DEBUG] Socket reconnected on attempt #${attemptNumber} with ID: ${socketRef.current.id}`);
+      reconnectionAttempts.current = 0;
       
-      // Re-register with the server on reconnection
+      // Reset some connection state for improved stability
+      socketRef.current.sendBuffer = [];
+      
+      // Re-register and rejoin
       socketRef.current.emit('join', user.id);
       debugLog(`[CLIENT DEBUG] Re-registered user ${user.id} after reconnection`);
       
@@ -1044,15 +1055,16 @@ const Chat = () => {
       if (messageQueue.current.length > 0) {
         debugLog(`Processing ${messageQueue.current.length} queued messages`);
         
-        messageQueue.current.forEach(msg => {
-          if (socketRef.current && socketRef.current.connected) {
+        // Use a small delay to allow socket to fully establish
+        setTimeout(() => {
+          [...messageQueue.current].forEach(msg => {
             socketRef.current.emit('sendMessage', msg);
             debugLog(`Sent queued message: ${msg.message.substring(0, 20)}...`);
-          }
-        });
-        
-        // Clear the queue
-        messageQueue.current = [];
+          });
+          
+          // Clear the queue
+          messageQueue.current = [];
+        }, 1000);
       }
       
       // If we were waiting for a partner, re-enter the queue
@@ -1064,8 +1076,13 @@ const Chat = () => {
         }, 1000);
       }
       
-      // If we were in a room, try to rejoin
-      if (chat.roomId) {
+      if (lastKnownRoomId.current) {
+        debugLog(`[CLIENT DEBUG] We were in room ${lastKnownRoomId.current}, attempting to rejoin`);
+        socketRef.current.emit('joinRoom', { 
+          roomId: lastKnownRoomId.current, 
+          userId: user.id 
+        });
+      } else if (chat.roomId) {
         debugLog(`[CLIENT DEBUG] We were in room ${chat.roomId}, attempting to rejoin`);
         socketRef.current.emit('joinRoom', { 
           roomId: chat.roomId, 
@@ -1106,6 +1123,33 @@ const Chat = () => {
     
     return () => clearInterval(userCountInterval);
   }, [socketRef.current, user.id]);
+  // Add enhanced periodic connection check
+useEffect(() => {
+  if (!socketRef.current || !user.id) return;
+  
+  const connectionCheckInterval = setInterval(() => {
+    if (chat.roomId && (!socketRef.current.connected || socketRef.current.disconnected)) {
+      debugLog('Connection check: Socket appears disconnected but we have an active chat');
+      
+      // First try reconnecting through socket.io
+      if (socketRef.current) {
+        debugLog('Attempting socket reconnection...');
+        socketRef.current.connect();
+      }
+      
+      // If we have a valid room ID, try to ping it directly
+      if (chat.roomId && socketRef.current && socketRef.current.connected) {
+        debugLog(`Sending explicit room check for ${chat.roomId}`);
+        socketRef.current.emit('checkConnection', {
+          userId: user.id,
+          roomId: chat.roomId
+        });
+      }
+    }
+  }, 7000); // Check every 7 seconds
+  
+  return () => clearInterval(connectionCheckInterval);
+}, [socketRef.current, user.id, chat.roomId]);
  
   
   
@@ -1134,29 +1178,41 @@ const Chat = () => {
   const sendMessage = () => {
     if (!chat.message.trim() || !chat.roomId) return;
     
-    const messageData = { 
-      senderId: user.id, 
-      receiverId: chat.receiverId, 
-      message: chat.message.trim(), 
+    debugLog(`Sending message to room ${chat.roomId}`);
+    
+    const messageId = Date.now() + Math.random().toString(36).substring(2, 9);
+    const messageData = {
+      senderId: user.id,
+      receiverId: chat.receiverId,
+      message: chat.message.trim(),
       roomId: chat.roomId,
-      localId: Date.now() // Add a local ID to track this message
+      messageId: messageId,
+      createdAt: new Date()
     };
     
-    // Add to local messages immediately to improve UI responsiveness
+    // First add the message to our local state for immediate feedback
     setChat(prev => ({
-      ...prev, 
+      ...prev,
       message: '',
-      messages: [...prev.messages, {...messageData, createdAt: new Date(), pending: true}]
+      messages: [...prev.messages, {
+        ...messageData,
+        pending: true
+      }]
     }));
     
-    // Try to send - if socket is disconnected, queue the message
+    // Try to send it
     if (socketRef.current && socketRef.current.connected) {
-      debugLog(`Sending message to room ${chat.roomId}`);
       socketRef.current.emit('sendMessage', messageData);
     } else {
-      // Socket disconnected, queue the message
+      // Queue the message for later
       messageQueue.current.push(messageData);
-      debugLog(`Socket disconnected, message queued. Queue size: ${messageQueue.current.length}`);
+      debugLog(`Socket not connected. Message queued (${messageQueue.current.length} pending)`);
+      
+      // Try to reconnect if socket is disconnected
+      if (socketRef.current && !socketRef.current.connected) {
+        debugLog('Trying to reconnect socket...');
+        socketRef.current.connect();
+      }
     }
   };
 
