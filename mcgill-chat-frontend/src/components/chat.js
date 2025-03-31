@@ -1022,16 +1022,17 @@ const Chat = () => {
     
     const heartbeatInterval = setInterval(() => {
       if (socketRef.current && socketRef.current.connected) {
-        debugLog(`[CLIENT DEBUG] Sending heartbeat, socket ID: ${socketRef.current.id}`);
         socketRef.current.emit('heartbeat', { 
           userId: user.id,
           waiting: chat.waiting,
-          chatType: chat.chatType
+          chatType: chat.chatType,
+          timestamp: Date.now() // Add timestamp for better tracking
         });
       } else if (socketRef.current) {
-        debugLog(`[CLIENT DEBUG] Socket not connected during heartbeat check`);
+        // More aggressive reconnection
+        socketRef.current.connect();
       }
-    }, 10000); // Every 10 seconds
+    }, 5000); // Every 5 seconds instead of 10
     
     return () => clearInterval(heartbeatInterval);
   }, [socketRef.current, user.id, chat.waiting, chat.chatType]);

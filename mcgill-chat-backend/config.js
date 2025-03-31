@@ -19,9 +19,9 @@ module.exports = {
   
   // Socket.IO settings
   socketIO: {
-    pingTimeout: 30000,
-    pingInterval: 10000,
-    upgradeTimeout: 15000,
+    pingTimeout: 60000,     // 60 seconds
+    pingInterval: 25000,    // 25 seconds
+    upgradeTimeout: 30000, 
     maxHttpBufferSize: 1e8,
     allowEIO3: true,
     transports: ['websocket', 'polling'],
