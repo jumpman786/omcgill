@@ -61,33 +61,40 @@ const Register = () => {
         // Get the user's Firebase UID
         const firebaseUid = result.user.uid;
         
-        // Use the API URL from config
-        const apiUrl = getApiUrl();
-        console.log("Using API URL for registration:", apiUrl);
-        
-        const response = await fetch(`${apiUrl}/users`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            firebaseUid,
-            email: formData.email,
-            yearOfStudy: formData.yearOfStudy,
-            faculty: formData.faculty
-          }),
-          // Add these options to handle mixed content and CORS issues
-          mode: 'cors',
-          credentials: 'same-origin'
-        });
-        
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to create user profile in the database');
+        try {
+          // Use the API URL from config
+          const apiUrl = getApiUrl();
+          console.log("Using API URL for registration:", apiUrl);
+          
+          const response = await fetch(`${apiUrl}/users`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              firebaseUid,
+              email: formData.email,
+              yearOfStudy: formData.yearOfStudy,
+              faculty: formData.faculty
+            }),
+            mode: 'cors',
+            credentials: 'same-origin'
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to create user profile in the database');
+          }
+          
+          setSuccess('Registration successful! Please check your email to verify your account.');
+          setTimeout(() => navigate('/login'), 5000);
+        } catch (dbError) {
+          // Handle database errors separately
+          console.error('Database error:', dbError);
+          // Still show success since Firebase registration worked
+          setSuccess('Account created! Please check your email to verify your account. (Note: Some profile data may be incomplete)');
+          setTimeout(() => navigate('/login'), 5000);
         }
-        
-        setSuccess('Registration successful! Please check your email to verify your account.');
-        setTimeout(() => navigate('/login'), 5000);
       } else {
         setError(result.error);
       }

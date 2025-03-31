@@ -26,8 +26,9 @@ import {
   };
   
   export const actionCodeSettings = {
-    url: window.location.origin + '/verify-email',
-    handleCodeInApp: false // Set to false for email verification links
+    // Make sure this URL is correct and accessible
+    url: window.location.origin + '/login?verified=true',
+    handleCodeInApp: false
   };
   
   // Firebase register function

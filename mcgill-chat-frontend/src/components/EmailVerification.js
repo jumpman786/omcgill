@@ -12,49 +12,51 @@ const EmailVerification = () => {
   const navigate = useNavigate();
   const location = useLocation();
   
-  useEffect(() => {
-    const verifyEmail = async () => {
+  // In EmailVerification.js
+useEffect(() => {
+  const verifyEmail = async () => {
+    try {
+      setLoading(true);
+      // Parse the URL properly
+      const urlParams = new URLSearchParams(location.search);
+      const mode = urlParams.get('mode');
+      const actionCode = urlParams.get('oobCode');
+      console.log("Verification parameters:", { mode, actionCode });
+      
+      if (!actionCode) {
+        throw new Error('No verification code found in URL');
+      }
+      
+      if (mode !== 'verifyEmail') {
+        throw new Error(`Unsupported mode: ${mode}`);
+      }
+      
+      // Use a more robust approach
       try {
-        // Parse the URL properly
-        const urlParams = new URLSearchParams(location.search);
-        const mode = urlParams.get('mode');
-        const actionCode = urlParams.get('oobCode');
-        
-        console.log("Verification parameters:", { mode, actionCode });
-        
-        if (!actionCode) {
-          throw new Error('No verification code found in URL');
-        }
-        
-        if (mode !== 'verifyEmail') {
-          throw new Error(`Unsupported mode: ${mode}`);
-        }
-        
         // First check if the action code is valid
         await checkActionCode(auth, actionCode);
-        
         // Then apply it
         await applyActionCode(auth, actionCode);
-        
         setSuccess('Your email has been verified successfully! You can now log in.');
         setTimeout(() => navigate('/login'), 3000);
-      } catch (error) {
-        console.error("Email verification error:", error);
-        
-        if (error.code === 'auth/invalid-action-code') {
-          setError('This verification link has expired or has already been used.');
-        } else if (error.code === 'auth/user-not-found') {
-          setError('User account not found.');
+      } catch (firebaseError) {
+        console.error("Firebase verification error:", firebaseError);
+        if (firebaseError.code === 'auth/invalid-action-code') {
+          setError('This verification link has expired or has already been used. Please request a new verification email from the login page.');
         } else {
-          setError(`Failed to verify email: ${error.message}`);
+          setError(`Failed to verify email: ${firebaseError.message}`);
         }
-      } finally {
-        setLoading(false);
       }
-    };
-    
-    verifyEmail();
-  }, [location, navigate]);
+    } catch (error) {
+      console.error("General verification error:", error);
+      setError(`Verification failed: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  verifyEmail();
+}, [location, navigate]);
   
   if (loading) {
     return (

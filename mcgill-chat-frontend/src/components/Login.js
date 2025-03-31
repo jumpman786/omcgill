@@ -2,11 +2,16 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { loginWithFirebase } from '../utils/firebaseAuth';
+import { sendEmailVerification } from "firebase/auth";
+import { auth } from '../firebase';
+import { actionCodeSettings } from '../utils/firebaseAuth';
 
 const Login = () => {
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
+  const [message, setMessage] = useState(''); 
   const [loading, setLoading] = useState(false);
+  const [showResendOption, setShowResendOption] = useState(false);
   
   const navigate = useNavigate();
 
@@ -18,16 +23,64 @@ const Login = () => {
     }
   }, [navigate]);
 
+  // Check if coming from verification flow
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const verified = urlParams.get('verified');
+    
+    if (verified === 'true') {
+      setMessage('Your email has been verified! You can now log in.');
+      // Clean up the URL
+      window.history.replaceState({}, document.title, '/login');
+    }
+  }, []);
+
   const handleChange = (e) => {
     setFormData({...formData, [e.target.name]: e.target.value});
     
     // Clear error when user starts typing
     if (error) setError('');
+    if (message) setMessage('');
+    
+    // Hide resend option when typing
+    if (showResendOption) setShowResendOption(false);
+  };
+
+  const resendVerificationEmail = async () => {
+    if (!formData.email || !formData.password) {
+      setError('Please enter your email and password to resend verification');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      // First sign in the user
+      const result = await loginWithFirebase(formData.email, formData.password);
+      
+      if (result.success) {
+        if (result.emailVerified) {
+          setMessage('Your email is already verified. You can log in now!');
+          setShowResendOption(false);
+        } else {
+          // Send verification email
+          await sendEmailVerification(auth.currentUser, actionCodeSettings);
+          setMessage('Verification email sent! Please check your inbox and spam folder.');
+        }
+      } else {
+        setError(result.error);
+      }
+    } catch (error) {
+      console.error('Failed to send verification email:', error);
+      setError('Failed to send verification email: ' + (error.message || 'Unknown error'));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setMessage('');
     
     // Validation
     if (!formData.email || !formData.password) {
@@ -50,7 +103,8 @@ const Login = () => {
       if (result.success) {
         // Check if email is verified
         if (!result.emailVerified) {
-          setError('Please verify your email before logging in. Check your inbox.');
+          setError('Please verify your email before logging in. Check your inbox and spam folder.');
+          setShowResendOption(true);
           setLoading(false);
           return;
         }
@@ -77,6 +131,20 @@ const Login = () => {
       <h2>McGill Student Login</h2>
       
       {error && <div className="error-message">{error}</div>}
+      {message && <div className="success-message">{message}</div>}
+      
+      {showResendOption && (
+        <div className="resend-verification">
+          <p>Didn't receive a verification email?</p>
+          <button 
+            onClick={resendVerificationEmail}
+            className="resend-button"
+            disabled={loading}
+          >
+            {loading ? 'Sending...' : 'Resend Verification Email'}
+          </button>
+        </div>
+      )}
       
       <form onSubmit={handleSubmit} className="auth-form">
         <div className="form-group">

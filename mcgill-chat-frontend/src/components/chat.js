@@ -102,6 +102,7 @@ const Chat = () => {
         debugLog(`Socket connected successfully with ID: ${socketRef.current.id}`);
         setConnection(prev => ({ ...prev, socketStatus: 'connected' }));
         socketRef.current.emit('join', user.id);
+        socketRef.current.emit('requestActiveUsers');
         if (chat.waiting) {
           debugLog(`Re-registering for ${chat.chatType} chat after reconnection`);
           setTimeout(() => {
@@ -182,15 +183,17 @@ const Chat = () => {
       currentRoomIdRef.current = newRoomId;
       
       // Update chat state
-      setChat(prev => ({
-        ...prev,
-        waiting: false,
-        receiverId: partnerId,
+      setChat({
         roomId: newRoomId,
+        messages: [], // Fresh empty array
+        message: '',
+        typing: false,
+        activeUsers: [...chat.activeUsers],
+        waiting: false,
         connectedPartner: partnerNickname || partnerId,
         chatType: newChatType,
-        messages: []
-      }));
+        receiverId: partnerId
+      });
       
       // Explicitly join the room to ensure socket server adds us correctly
       if (socketRef.current) {
@@ -842,19 +845,26 @@ const Chat = () => {
 
   // Reset chat state
   const resetChat = () => {
-    debugLog('Resetting chat state');
+    debugLog('Resetting chat state with completely new arrays');
     
-    setChat(prev => ({
-      ...prev,
-      connectedPartner: null,
+    // Create a completely new state object to avoid any reference issues
+    setChat({
       roomId: null,
-      receiverId: '',
-      messages: [],
-      waiting: false
-    }));
+      messages: [], // Create a completely new empty array
+      message: '',
+      typing: false,
+      activeUsers: [...chat.activeUsers], // Create a new copy of activeUsers
+      waiting: false,
+      connectedPartner: null,
+      chatType: chat.chatType, // Preserve the chat type
+      receiverId: ''
+    });
     
-    resetConnection();
+    // Reset room ID ref
     currentRoomIdRef.current = null;
+    
+    // Reset connection
+    resetConnection();
   };
 
   // Toggle video
@@ -1033,6 +1043,19 @@ const Chat = () => {
       }
     };
   }, [socketRef.current, user.id, chat.waiting, chat.chatType, chat.roomId]);
+  useEffect(() => {
+    if (!socketRef.current || !user.id) return;
+    
+    const userCountInterval = setInterval(() => {
+      if (socketRef.current && socketRef.current.connected) {
+        // Request fresh user count
+        debugLog('Requesting updated active user count');
+        socketRef.current.emit('requestActiveUsers');
+      }
+    }, 15000); // Every 15 seconds
+    
+    return () => clearInterval(userCountInterval);
+  }, [socketRef.current, user.id]);
   
   
 
@@ -1042,11 +1065,18 @@ const Chat = () => {
     
     debugLog('Skipping current partner');
     
-    socketRef.current.emit('skip', user.id);
+    if (chat.roomId) {
+      socketRef.current.emit('skip', user.id);
+    }
+    
+    // Completely reset the chat state first
     resetChat();
     
-    // Find a new partner with the same chat type
-    findPartner(chat.chatType);
+    // Wait a moment before finding a new partner to ensure state is reset
+    setTimeout(() => {
+      // Find a new partner with the same chat type
+      findPartner(chat.chatType);
+    }, 300);
   };
 
   // Send a message
@@ -1079,6 +1109,7 @@ const Chat = () => {
   const handleLogout = () => {
     debugLog('Logging out');
     
+    // Reset all connections and state
     resetConnection();
     
     if (socketRef.current) {
@@ -1086,13 +1117,17 @@ const Chat = () => {
         socketRef.current.emit('skip', user.id);
       }
       
+      // Explicitly notify server about logout
       socketRef.current.emit('logout', user.id);
       socketRef.current.disconnect();
     }
     
+    // Clear chat-related localStorage items
     localStorage.removeItem('token');
     sessionStorage.removeItem('token');
+    localStorage.removeItem('userEmail');
     
+    // Redirect
     window.location.href = '/';
   };
 
