@@ -583,29 +583,31 @@ function registerHandlers(socket, io, isHttps, serverType) {
 
   // ------------------ TEXT MESSAGE HANDLING ------------------
 
-  socket.on('sendMessage', ({ senderId, receiverId, message, roomId }) => {
-    console.log(`💬 Message from ${senderId} to ${receiverId} in room ${roomId}: ${message}`);
-    
-    if (roomId && chatRooms[roomId]) {
-      // Save message to database
-      new Message({ 
-        senderId, 
-        receiverId, 
-        message, 
-        status: 'delivered',
-        createdAt: new Date()
-      }).save();
+  // On the server side, modify the sendMessage handler:
+socket.on('sendMessage', ({ senderId, receiverId, message, roomId }) => {
+  console.log(`💬 Message from ${senderId} to ${receiverId} in room ${roomId}: ${message}`);
+  
+  if (roomId && chatRooms[roomId]) {
+    // Save message to database
+    new Message({ 
+      senderId, 
+      receiverId, 
+      message, 
+      status: 'delivered',
+      createdAt: new Date()
+    }).save();
 
-      // Broadcast to room
-      io.to(roomId).emit('receiveMessage', { 
-        senderId, 
-        message, 
-        createdAt: new Date() 
-      });
-    } else {
-      console.log(`⚠️ Message not sent: Invalid room ${roomId}`);
-    }
-  });
+    // Broadcast to room - include roomId here
+    io.to(roomId).emit('receiveMessage', { 
+      senderId, 
+      message, 
+      roomId,  // Add this line to include roomId in the emitted message
+      createdAt: new Date() 
+    });
+  } else {
+    console.log(`⚠️ Message not sent: Invalid room ${roomId}`);
+  }
+});
 
   // ------------------ TYPING HANDLING ------------------
 

@@ -156,13 +156,17 @@ const Chat = () => {
     socketRef.current.on('receiveMessage', (data) => {
       debugLog(`Message received at ${new Date().toISOString()}:`, data);
       
-      // Check if this message is for our current room and not already in our list
-      if (data.roomId !== currentRoomIdRef.current) {
-        debugLog(`Ignoring message for room ${data.roomId} as we're in ${currentRoomIdRef.current}`);
+      // If roomId is not included in the message, use the current room
+      // This is necessary because the server appears to send messages without a roomId
+      const messageRoomId = data.roomId || currentRoomIdRef.current;
+      
+      // Check if this message is for our current room
+      if (messageRoomId !== currentRoomIdRef.current) {
+        debugLog(`Ignoring message for room ${messageRoomId} as we're in ${currentRoomIdRef.current}`);
         return;
       }
       
-      // Prevent duplicate messages by checking if we already have a message with the same timestamp
+      // Prevent duplicate messages by checking if we already have a message with the same content
       setChat(prev => {
         // Check if this appears to be a duplicate message
         const isDuplicate = prev.messages.some(msg => 
