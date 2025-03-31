@@ -696,7 +696,35 @@ socket.on('sendMessage', ({ senderId, receiverId, message, roomId }) => {
     }
   });
 }
+// Handle explicit room leave
+socket.on('leaveRoom', ({ roomId }) => {
+  if (roomId) {
+    debugLog(`User explicitly leaving room ${roomId}`);
+    socket.leave(roomId);
+  }
+});
 
+// Handle room membership refresh
+socket.on('refreshRoom', ({ roomId, userId, partnerId }) => {
+  if (roomId && chatRooms[roomId]) {
+    debugLog(`Refreshing room membership for ${roomId}`);
+    
+    // First ensure the user is in the room
+    socket.join(roomId);
+    
+    // Then notify everyone in the room about the refresh
+    io.to(roomId).emit('roomRefreshed', { roomId });
+    
+    // Make sure partners are both in this room
+    if (partnerId && connectedUsers[partnerId]) {
+      const partnerSocket = io.sockets.sockets.get(connectedUsers[partnerId]);
+      if (partnerSocket) {
+        partnerSocket.join(roomId);
+        debugLog(`Added partner ${partnerId} back to room ${roomId}`);
+      }
+    }
+  }
+});
 module.exports = {
   registerHandlers,
   findCompatiblePartner
