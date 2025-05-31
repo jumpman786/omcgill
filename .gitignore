@@ -76,3 +76,27 @@ local.settings.json
 # misc
 .vercel
 .turb
+
+# Firebase keys and sensitive files
+mcgill-chat-backend/serviceAccountKey.json
+mcgill-chat-frontend/src/firebase.js
+
+# SSL/TLS certificates (frontend)
+mcgill-chat-frontend/cert.pem
+mcgill-chat-frontend/key.pem
+mcgill-chat-frontend/.cert/
+
+# Node modules (always!)
+**/node_modules/
+
+# Environment files
+**/.env
+**/.env.*
+
+# OS and editor junk files
+.DS_Store
+*.log
+
+# Build artifacts (optional, if you generate dist/build)
+**/dist/
+**/build/
